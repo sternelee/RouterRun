@@ -1,18 +1,21 @@
 /**
- * BlockRun Model Definitions for OpenClaw
+ * RouterRun Model Definitions for OpenClaw
  *
- * Maps BlockRun's 30+ AI models to OpenClaw's ModelDefinitionConfig format.
- * All models use the "openai-completions" API since BlockRun is OpenAI-compatible.
+ * Maps RouterRun's 30+ AI models to OpenClaw's ModelDefinitionConfig format.
+ * All models use the "openai-completions" API since the providers are OpenAI-compatible.
  *
- * Pricing is in USD per 1M tokens. Operators pay these rates via x402;
- * they set their own markup when reselling to end users (Phase 2).
+ * Pricing is in USD per 1M tokens. Users pay these rates via API keys;
+ * they set their own budgets and usage limits.
+ *
+ * // Pricing is in USD per 1M tokens. Operators pay these rates via x402;
+ * // they set their own markup when reselling to end users (Phase 2).
  */
 
 import type { ModelDefinitionConfig, ModelProviderConfig } from "./types.js";
 
 /**
  * Model aliases for convenient shorthand access.
- * Users can type `/model claude` instead of `/model blockrun/anthropic/claude-sonnet-4-6`.
+ * Users can type `/model claude` instead of `/model anthropic/claude-sonnet-4-6`.
  */
 export const MODEL_ALIASES: Record<string, string> = {
   // Claude - use newest versions (4.6)
@@ -84,11 +87,11 @@ export const MODEL_ALIASES: Record<string, string> = {
 
 /**
  * Resolve a model alias to its full model ID.
- * Also strips "blockrun/" prefix for direct model paths.
+ * Also strips "blockrun/" and "clawrouter/" prefixes for backward compatibility.
  * Examples:
  *   - "claude" -> "anthropic/claude-sonnet-4-6" (alias)
  *   - "blockrun/claude" -> "anthropic/claude-sonnet-4-6" (alias with prefix)
- *   - "blockrun/anthropic/claude-sonnet-4-6" -> "anthropic/claude-sonnet-4-6" (prefix stripped)
+ *   - "clawrouter/claude" -> "anthropic/claude-sonnet-4-6" (alias with prefix)
  *   - "openai/gpt-4o" -> "openai/gpt-4o" (unchanged)
  */
 export function resolveModelAlias(model: string): string {
@@ -96,15 +99,17 @@ export function resolveModelAlias(model: string): string {
   const resolved = MODEL_ALIASES[normalized];
   if (resolved) return resolved;
 
-  // Check with "blockrun/" prefix stripped
-  if (normalized.startsWith("blockrun/")) {
-    const withoutPrefix = normalized.slice("blockrun/".length);
-    const resolvedWithoutPrefix = MODEL_ALIASES[withoutPrefix];
-    if (resolvedWithoutPrefix) return resolvedWithoutPrefix;
+  // Check with "blockrun/" or "clawrouter/" prefix stripped
+  for (const prefix of ["blockrun/", "clawrouter/"]) {
+    if (normalized.startsWith(prefix)) {
+      const withoutPrefix = normalized.slice(prefix.length);
+      const resolvedWithoutPrefix = MODEL_ALIASES[withoutPrefix];
+      if (resolvedWithoutPrefix) return resolvedWithoutPrefix;
 
-    // Even if not an alias, strip the prefix for direct model paths
-    // e.g., "blockrun/anthropic/claude-sonnet-4-6" -> "anthropic/claude-sonnet-4-6"
-    return withoutPrefix;
+      // Even if not an alias, strip the prefix for direct model paths
+      // e.g., "blockrun/openai/gpt-4o" -> "openai/gpt-4o"
+      return withoutPrefix;
+    }
   }
 
   return model;
@@ -132,9 +137,14 @@ type BlockRunModel = {
   toolCalling?: boolean;
 };
 
+/**
+ * Model definitions - source of truth for all available models.
+ * Model IDs use provider prefix format (openai/..., anthropic/..., etc.)
+ * This enables direct API key mode access to each provider.
+ */
 export const BLOCKRUN_MODELS: BlockRunModel[] = [
   // Smart routing meta-models — proxy replaces with actual model
-  // NOTE: Model IDs are WITHOUT provider prefix (OpenClaw adds "blockrun/" automatically)
+  // NOTE: Model IDs are WITHOUT provider prefix (OpenClaw adds "clawrouter/" automatically)
   {
     id: "auto",
     name: "Auto (Smart Router - Balanced)",
@@ -625,7 +635,7 @@ export const BLOCKRUN_MODELS: BlockRunModel[] = [
 ];
 
 /**
- * Convert BlockRun model definitions to OpenClaw ModelDefinitionConfig format.
+ * Convert RouterRun model definitions to OpenClaw ModelDefinitionConfig format.
  */
 function toOpenClawModel(m: BlockRunModel): ModelDefinitionConfig {
   return {
@@ -658,7 +668,7 @@ const ALIAS_MODELS: ModelDefinitionConfig[] = Object.entries(MODEL_ALIASES)
   .filter((m): m is ModelDefinitionConfig => m !== null);
 
 /**
- * All BlockRun models in OpenClaw format (including aliases).
+ * All RouterRun models in OpenClaw format (including aliases).
  */
 export const OPENCLAW_MODELS: ModelDefinitionConfig[] = [
   ...BLOCKRUN_MODELS.map(toOpenClawModel),
@@ -666,7 +676,7 @@ export const OPENCLAW_MODELS: ModelDefinitionConfig[] = [
 ];
 
 /**
- * Build a ModelProviderConfig for BlockRun.
+ * Build a ModelProviderConfig for RouterRun.
  *
  * @param baseUrl - The proxy's local base URL (e.g., "http://127.0.0.1:12345")
  */
@@ -685,7 +695,10 @@ export function buildProviderModels(baseUrl: string): ModelProviderConfig {
  */
 export function isAgenticModel(modelId: string): boolean {
   const model = BLOCKRUN_MODELS.find(
-    (m) => m.id === modelId || m.id === modelId.replace("blockrun/", ""),
+    (m) =>
+      m.id === modelId ||
+      m.id === modelId.replace("blockrun/", "") ||
+      m.id === modelId.replace("clawrouter/", "")
   );
   return model?.agentic ?? false;
 }
@@ -703,7 +716,9 @@ export function getAgenticModels(): string[] {
  * plain text JSON, which leaks {"command":"..."} into visible chat messages.
  */
 export function supportsToolCalling(modelId: string): boolean {
-  const normalized = modelId.replace("blockrun/", "");
+  const normalized = modelId
+    .replace("blockrun/", "")
+    .replace("clawrouter/", "");
   const model = BLOCKRUN_MODELS.find((m) => m.id === normalized);
   return model?.toolCalling ?? false;
 }
@@ -713,7 +728,9 @@ export function supportsToolCalling(modelId: string): boolean {
  * Returns undefined if model not found.
  */
 export function getModelContextWindow(modelId: string): number | undefined {
-  const normalized = modelId.replace("blockrun/", "");
+  const normalized = modelId
+    .replace("blockrun/", "")
+    .replace("clawrouter/", "");
   const model = BLOCKRUN_MODELS.find((m) => m.id === normalized);
   return model?.contextWindow;
 }
@@ -723,7 +740,9 @@ export function getModelContextWindow(modelId: string): number | undefined {
  * Reasoning models may require reasoning_content in assistant tool_call messages.
  */
 export function isReasoningModel(modelId: string): boolean {
-  const normalized = modelId.replace("blockrun/", "");
+  const normalized = modelId
+    .replace("blockrun/", "")
+    .replace("clawrouter/", "");
   const model = BLOCKRUN_MODELS.find((m) => m.id === normalized);
   return model?.reasoning ?? false;
 }

@@ -2,16 +2,20 @@
  * BlockRun Doctor - AI-Powered Diagnostics
  *
  * Collects system diagnostics and sends to Claude Opus 4.6 for analysis.
- * Works independently of OpenClaw - direct x402 payment to BlockRun API.
+ * Works independently of OpenClaw - uses API keys instead of x402 payments.
  */
 
 import { platform, arch, freemem, totalmem } from "node:os";
-import { resolveOrGenerateWalletKey, WALLET_FILE } from "./auth.js";
-import { BalanceMonitor } from "./balance.js";
+
+// X402: import { resolveOrGenerateWalletKey, WALLET_FILE } from "./auth.js";
+// X402: import { BalanceMonitor } from "./balance.js";
 import { getStats } from "./stats.js";
-import { createPaymentFetch } from "./x402.js";
+// X402: import { createPaymentFetch } from "./x402.js";
 import { getProxyPort } from "./proxy.js";
 import { VERSION } from "./version.js";
+
+// API Key imports
+import { loadApiKeys, getConfiguredProviders, isModelAccessible, resolveProviderAccess } from "./api-keys.js";
 
 // Types
 interface SystemInfo {
@@ -22,14 +26,21 @@ interface SystemInfo {
   memoryTotal: string;
 }
 
-interface WalletInfo {
-  exists: boolean;
-  valid: boolean;
-  address: string | null;
-  balance: string | null;
-  isLow: boolean;
-  isEmpty: boolean;
-  source: "saved" | "env" | "generated" | null;
+// X402: interface WalletInfo {
+// X402:   exists: boolean;
+// X402:   valid: boolean;
+// X402:   address: string | null;
+// X402:   balance: string | null;
+// X402:   isLow: boolean;
+// X402:   isEmpty: boolean;
+// X402:   source: "saved" | "env" | "generated" | null;
+// X402: }
+
+interface ProviderInfo {
+  providers: string[];
+  hasOpenRouter: boolean;
+  configuredModels: string[];
+  isReady: boolean;
 }
 
 interface NetworkInfo {
@@ -47,7 +58,8 @@ interface DiagnosticResult {
   version: string;
   timestamp: string;
   system: SystemInfo;
-  wallet: WalletInfo;
+  // X402: wallet: WalletInfo;
+  providers: ProviderInfo;
   network: NetworkInfo;
   logs: LogInfo;
   issues: string[];
@@ -82,58 +94,85 @@ function collectSystemInfo(): SystemInfo {
   };
 }
 
-// Collect wallet info
-async function collectWalletInfo(): Promise<WalletInfo> {
-  try {
-    const { key, address, source } = await resolveOrGenerateWalletKey();
+// X402: // Collect wallet info
+// X402: async function collectWalletInfo(): Promise<WalletInfo> {
+// X402:   try {
+// X402:     const { key, address, source } = await resolveOrGenerateWalletKey();
+// X402:
+// X402:     if (!key || !address) {
+// X402:       return {
+// X402:         exists: false,
+// X402:         valid: false,
+// X402:         address: null,
+// X402:         balance: null,
+// X402:         isLow: false,
+// X402:         isEmpty: true,
+// X402:         source: null,
+// X402:       };
+// X402:     }
+// X402:
+// X402:     // Check balance
+// X402:     const monitor = new BalanceMonitor(address);
+// X402:     try {
+// X402:       const balanceInfo = await monitor.checkBalance();
+// X402:       return {
+// X402:         exists: true,
+// X402:         valid: true,
+// X402:         address,
+// X402:         balance: balanceInfo.balanceUSD,
+// X402:         isLow: balanceInfo.isLow,
+// X402:         isEmpty: balanceInfo.isEmpty,
+// X402:         source,
+// X402:       };
+// X402:     } catch {
+// X402:       return {
+// X402:         exists: true,
+// X402:         valid: true,
+// X402:         address,
+// X402:         balance: null,
+// X402:         isLow: false,
+// X402:         isEmpty: false,
+// X402:         source,
+// X402:       };
+// X402:     }
+// X402:   } catch {
+// X402:     return {
+// X402:       exists: false,
+// X402:       valid: false,
+// X402:       address: null,
+// X402:       balance: null,
+// X402:       isLow: false,
+// X402:       isEmpty: true,
+// X402:       source: null,
+// X402:     };
+// X402:   }
+// X402: }
 
-    if (!key || !address) {
-      return {
-        exists: false,
-        valid: false,
-        address: null,
-        balance: null,
-        isLow: false,
-        isEmpty: true,
-        source: null,
-      };
-    }
+// Collect provider info (API keys)
+function collectProviderInfo(): ProviderInfo {
+  const config = loadApiKeys();
+  const providers = getConfiguredProviders(config);
+  const hasOpenRouter = providers.includes("openrouter");
 
-    // Check balance
-    const monitor = new BalanceMonitor(address);
-    try {
-      const balanceInfo = await monitor.checkBalance();
-      return {
-        exists: true,
-        valid: true,
-        address,
-        balance: balanceInfo.balanceUSD,
-        isLow: balanceInfo.isLow,
-        isEmpty: balanceInfo.isEmpty,
-        source,
-      };
-    } catch {
-      return {
-        exists: true,
-        valid: true,
-        address,
-        balance: null,
-        isLow: false,
-        isEmpty: false,
-        source,
-      };
-    }
-  } catch {
-    return {
-      exists: false,
-      valid: false,
-      address: null,
-      balance: null,
-      isLow: false,
-      isEmpty: true,
-      source: null,
-    };
-  }
+  // Check accessibility for common models
+  const modelsToCheck = [
+    "openai/gpt-4o",
+    "openai/gpt-4o-mini",
+    "anthropic/claude-sonnet-4.6",
+    "anthropic/claude-opus-4.6",
+    "xai/grok-beta",
+    "deepseek/deepseek-chat",
+    "google/gemini-2.0-flash-exp",
+  ];
+
+  const configuredModels = modelsToCheck.filter((model) => isModelAccessible(config, model));
+
+  return {
+    providers,
+    hasOpenRouter,
+    configuredModels,
+    isReady: providers.length > 0,
+  };
 }
 
 // Collect network info
@@ -195,14 +234,20 @@ async function collectLogInfo(): Promise<LogInfo> {
 function identifyIssues(result: DiagnosticResult): string[] {
   const issues: string[] = [];
 
-  if (!result.wallet.exists) {
-    issues.push("No wallet found");
+  // X402: if (!result.wallet.exists) {
+  // X402:   issues.push("No wallet found");
+  // X402: }
+  // X402: if (result.wallet.isEmpty) {
+  // X402:   issues.push("Wallet is empty - need to fund with USDC on Base");
+  // X402: } else if (result.wallet.isLow) {
+  // X402:   issues.push("Wallet balance is low (< $1.00)");
+  // X402: }
+
+  if (!result.providers.isReady) {
+    issues.push("No API keys configured - set provider keys via env vars or config file");
+    issues.push("  Available providers: openai, anthropic, google, xai, deepseek, moonshot, nvidia, openrouter");
   }
-  if (result.wallet.isEmpty) {
-    issues.push("Wallet is empty - need to fund with USDC on Base");
-  } else if (result.wallet.isLow) {
-    issues.push("Wallet balance is low (< $1.00)");
-  }
+
   if (!result.network.blockrunApi.reachable) {
     issues.push("Cannot reach BlockRun API - check internet connection");
   }
@@ -225,22 +270,39 @@ function printDiagnostics(result: DiagnosticResult): void {
     `  ${green(`Memory: ${result.system.memoryFree} free / ${result.system.memoryTotal}`)}`,
   );
 
-  // Wallet
-  console.log("\nWallet");
-  if (result.wallet.exists && result.wallet.valid) {
-    console.log(`  ${green(`Key: ${WALLET_FILE} (${result.wallet.source})`)}`);
-    console.log(`  ${green(`Address: ${result.wallet.address}`)}`);
-    if (result.wallet.isEmpty) {
-      console.log(`  ${red(`Balance: $0.00 - NEED TO FUND!`)}`);
-    } else if (result.wallet.isLow) {
-      console.log(`  ${yellow(`Balance: ${result.wallet.balance} (low)`)}`);
-    } else if (result.wallet.balance) {
-      console.log(`  ${green(`Balance: ${result.wallet.balance}`)}`);
-    } else {
-      console.log(`  ${yellow(`Balance: checking...`)}`);
+  // X402: // Wallet
+  // X402: console.log("\nWallet");
+  // X402: if (result.wallet.exists && result.wallet.valid) {
+  // X402:   console.log(`  ${green(`Key: ${WALLET_FILE} (${result.wallet.source})`)}`);
+  // X402:   console.log(`  ${green(`Address: ${result.wallet.address}`)}`);
+  // X402:   if (result.wallet.isEmpty) {
+  // X402:     console.log(`  ${red(`Balance: $0.00 - NEED TO FUND!`)}`);
+  // X402:   } else if (result.wallet.isLow) {
+  // X402:     console.log(`  ${yellow(`Balance: ${result.wallet.balance} (low)`)}`);
+  // X402:   } else if (result.wallet.balance) {
+  // X402:     console.log(`  ${green(`Balance: ${result.wallet.balance}`)}`);
+  // X402:   } else {
+  // X402:     console.log(`  ${yellow(`Balance: checking...`)}`);
+  // X402:   }
+  // X402: } else {
+  // X402:   console.log(`  ${red("No wallet found")}`);
+  // X402: }
+
+  // Providers (API Keys)
+  console.log("\nProviders (API Keys)");
+  if (result.providers.isReady) {
+    for (const provider of result.providers.providers) {
+      console.log(`  ${green(`${provider}: configured`)}`);
+    }
+    if (result.providers.hasOpenRouter) {
+      console.log(`  ${green("OpenRouter: available (fallback for all models)")}`);
+    }
+    if (result.providers.configuredModels.length > 0) {
+      console.log(`  ${green(`Accessible models: ${result.providers.configuredModels.length}`)}`);
     }
   } else {
-    console.log(`  ${red("No wallet found")}`);
+    console.log(`  ${red("No API keys configured")}`);
+    console.log(`  ${yellow("  Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or other provider env vars")}`);
   }
 
   // Network
@@ -298,28 +360,79 @@ async function analyzeWithAI(
   userQuestion?: string,
   model: DoctorModel = "sonnet",
 ): Promise<void> {
-  // Check if wallet has funds
-  if (diagnostics.wallet.isEmpty) {
-    console.log("\n💳 Wallet is empty - cannot call AI for analysis.");
-    console.log(`   Fund your wallet with USDC on Base: ${diagnostics.wallet.address}`);
-    console.log("   Get USDC: https://www.coinbase.com/price/usd-coin");
-    console.log("   Bridge to Base: https://bridge.base.org\n");
+  // X402: // Check if wallet has funds
+  // X402: if (diagnostics.wallet.isEmpty) {
+  // X402:   console.log("\n💳 Wallet is empty - cannot call AI for analysis.");
+  // X402:   console.log(`   Fund your wallet with USDC on Base: ${diagnostics.wallet.address}`);
+  // X402:   console.log("   Get USDC: https://www.coinbase.com/price/usd-coin");
+  // X402:   console.log("   Bridge to Base: https://bridge.base.org\n");
+  // X402:   return;
+  // X402: }
+
+  // Check if API keys are available for the requested model
+  const config = loadApiKeys();
+  const modelConfig = DOCTOR_MODELS[model];
+  const providerAccess = resolveProviderAccess(config, modelConfig.id);
+
+  if (!providerAccess) {
+    console.log(`\n💳 No API key configured for ${modelConfig.name}`);
+    console.log(`   Configure ANTHROPIC_API_KEY or OPENROUTER_API_KEY env var`);
+    if (!diagnostics.providers.hasOpenRouter) {
+      console.log(`   OpenRouter can provide access to ${modelConfig.name}`);
+    }
+    console.log();
     return;
   }
 
-  const modelConfig = DOCTOR_MODELS[model];
-  console.log(`\n📤 Sending to ${modelConfig.name} (${modelConfig.cost})...\n`);
+  console.log(`\n📤 Sending to ${modelConfig.name} (${modelConfig.cost}) via ${providerAccess.provider}...\n`);
 
   try {
-    const { key } = await resolveOrGenerateWalletKey();
-    const { fetch: paymentFetch } = createPaymentFetch(key as `0x${string}`);
+    // X402: const { key } = await resolveOrGenerateWalletKey();
+    // X402: const { fetch: paymentFetch } = createPaymentFetch(key as `0x${string}`);
 
-    const response = await paymentFetch(
-      "https://blockrun.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+    // Use API key instead of x402 payment
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+
+    if (providerAccess.provider === "anthropic") {
+      headers["x-api-key"] = providerAccess.apiKey;
+      headers["anthropic-version"] = "2023-06-01";
+      headers["anthropic-dangerous-direct-browser-access"] = "false";
+    } else {
+      // OpenAI-compatible format (OpenRouter, OpenAI, xai, etc.)
+      headers["Authorization"] = `Bearer ${providerAccess.apiKey}`;
+    }
+
+    const isAnthropic = providerAccess.provider === "anthropic" || modelConfig.id.startsWith("anthropic/");
+    const baseUrl = isAnthropic && !providerAccess.viaOpenRouter
+      ? "https://api.anthropic.com/v1/messages"
+      : `${providerAccess.baseUrl}/chat/completions`;
+
+    const requestBody = isAnthropic && !providerAccess.viaOpenRouter
+      ? {
+          model: modelConfig.id.replace("anthropic/", ""),
+          system: `You are a technical support expert for BlockRun and ClawRouter.
+Analyze the diagnostics and:
+1. Identify the root cause of any issues
+2. Provide specific, actionable fix commands (bash)
+3. Explain why the issue occurred briefly
+4. Be concise but thorough
+5. Format commands in code blocks`,
+          messages: userQuestion
+            ? [
+                {
+                  role: "user",
+                  content: `Here are my system diagnostics:\n\n${JSON.stringify(diagnostics, null, 2)}\n\nUser's question: ${userQuestion}`,
+                },
+              ]
+            : [
+                {
+                  role: "user",
+                  content: `Here are my system diagnostics:\n\n${JSON.stringify(diagnostics, null, 2)}\n\nPlease analyze and help me fix any issues.`,
+                },
+              ],
+          max_tokens: 1000,
+        }
+      : {
           model: modelConfig.id,
           stream: false,
           messages: [
@@ -341,10 +454,13 @@ Analyze the diagnostics and:
             },
           ],
           max_tokens: 1000,
-        }),
-      },
-      undefined,
-    );
+        };
+
+    const response = await fetch(baseUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(requestBody),
+    });
 
     if (!response.ok) {
       const text = await response.text();
@@ -353,7 +469,13 @@ Analyze the diagnostics and:
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    let content: string | undefined;
+
+    if (isAnthropic && !providerAccess.viaOpenRouter) {
+      content = data.content?.[0]?.text;
+    } else {
+      content = data.choices?.[0]?.message?.content;
+    }
 
     if (content) {
       console.log("🤖 AI Analysis:\n");
@@ -364,7 +486,7 @@ Analyze the diagnostics and:
     }
   } catch (err) {
     console.log(`\nError calling AI: ${err instanceof Error ? err.message : String(err)}`);
-    console.log("Try again or check your wallet balance.\n");
+    console.log("Try again or check your API key configuration.\n");
   }
 }
 
@@ -376,9 +498,9 @@ export async function runDoctor(
   console.log(`\n🩺 BlockRun Doctor v${VERSION}\n`);
 
   // Collect all diagnostics
-  const [system, wallet, network, logs] = await Promise.all([
+  const [system, providers, network, logs] = await Promise.all([
     collectSystemInfo(),
-    collectWalletInfo(),
+    Promise.resolve(collectProviderInfo()), // X402: collectWalletInfo(),
     collectNetworkInfo(),
     collectLogInfo(),
   ]);
@@ -387,7 +509,8 @@ export async function runDoctor(
     version: VERSION,
     timestamp: new Date().toISOString(),
     system,
-    wallet,
+    // X402: wallet,
+    providers,
     network,
     logs,
     issues: [],

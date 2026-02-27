@@ -13,9 +13,10 @@
  *   pm2 start "npx @blockrun/clawrouter" --name clawrouter
  */
 
+// X402: import { resolveOrGenerateWalletKey } from "./auth.js";
+// X402: import { BalanceMonitor } from "./balance.js";
 import { startProxy, getProxyPort } from "./proxy.js";
-import { resolveOrGenerateWalletKey } from "./auth.js";
-import { BalanceMonitor } from "./balance.js";
+import { loadApiKeys, getConfiguredProviders, hasOpenRouter, getAccessibleProviders } from "./api-keys.js";
 import { VERSION } from "./version.js";
 import { runDoctor } from "./doctor.js";
 import { PARTNER_SERVICES } from "./partners/index.js";
@@ -180,20 +181,54 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  // Resolve wallet key
-  const { key: walletKey, address, source } = await resolveOrGenerateWalletKey();
+  // X402: Resolve wallet key
+  // X402: const { key: walletKey, address, source } = await resolveOrGenerateWalletKey();
+  //
+  // X402: if (source === "generated") {
+  // X402:   console.log(`[ClawRouter] Generated new wallet: ${address}`);
+  // X402: } else if (source === "saved") {
+  // X402:   console.log(`[ClawRouter] Using saved wallet: ${address}`);
+  // X402: } else {
+  // X402:   console.log(`[ClawRouter] Using wallet from BLOCKRUN_WALLET_KEY: ${address}`);
+  // X402: }
 
-  if (source === "generated") {
-    console.log(`[ClawRouter] Generated new wallet: ${address}`);
-  } else if (source === "saved") {
-    console.log(`[ClawRouter] Using saved wallet: ${address}`);
-  } else {
-    console.log(`[ClawRouter] Using wallet from BLOCKRUN_WALLET_KEY: ${address}`);
+  // Load API keys
+  const apiKeys = loadApiKeys();
+  const configured = getConfiguredProviders(apiKeys);
+
+  if (configured.length === 0) {
+    console.error("[ClawRouter] No API keys configured!");
+    console.error("[ClawRouter] Quickest: export OPENROUTER_API_KEY=sk-or-...  (one key → all models)");
+    console.error("[ClawRouter] Or set individual keys: OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.");
+    console.error("[ClawRouter] Or edit ~/.openclaw/clawrouter/config.json");
+    process.exit(1);
   }
+
+  const accessible = getAccessibleProviders(apiKeys);
+  const orFallback = hasOpenRouter(apiKeys);
+  console.log(`[ClawRouter] Configured providers: ${configured.join(", ")}${orFallback ? " (OpenRouter covers all)" : ""}`);
+  console.log(`[ClawRouter] Accessible providers: ${accessible.join(", ")} (${accessible.length} total)`);
+
+  // X402: Check balance
+  // X402: const monitor = new BalanceMonitor(address);
+  // X402: try {
+  // X402:   const balance = await monitor.checkBalance();
+  // X402:   if (balance.isEmpty) {
+  // X402:     console.log(`[ClawRouter] Wallet balance: $0.00 (using FREE model)`);
+  // X402:     console.log(`[ClawRouter] Fund wallet for premium models: ${address}`);
+  // X402:   } else if (balance.isLow) {
+  // X402:     console.log(`[ClawRouter] Wallet balance: ${balance.balanceUSD} (low)`);
+  // X402:   } else {
+  // X402:     console.log(`[ClawRouter] Wallet balance: ${balance.balanceUSD}`);
+  // X402:   }
+  // X402: } catch {
+  // X402:   console.log(`[ClawRouter] Wallet: ${address} (balance check pending)`);
+  // X402: }
 
   // Start the proxy
   const proxy = await startProxy({
-    walletKey,
+    // X402: walletKey,
+    apiKeys,
     port: args.port,
     onReady: (port) => {
       console.log(`[ClawRouter] Proxy listening on http://127.0.0.1:${port}`);
@@ -207,32 +242,16 @@ async function main(): Promise<void> {
       const saved = (decision.savings * 100).toFixed(0);
       console.log(`[ClawRouter] [${decision.tier}] ${decision.model} $${cost} (saved ${saved}%)`);
     },
-    onLowBalance: (info) => {
-      console.warn(`[ClawRouter] Low balance: ${info.balanceUSD}. Fund: ${info.walletAddress}`);
-    },
-    onInsufficientFunds: (info) => {
-      console.error(
-        `[ClawRouter] Insufficient funds. Balance: ${info.balanceUSD}, Need: ${info.requiredUSD}`,
-      );
-      console.error(`[ClawRouter] Need help? Run: npx @blockrun/clawrouter doctor`);
-    },
+    // X402: onLowBalance: (info) => {
+    // X402:   console.warn(`[ClawRouter] Low balance: ${info.balanceUSD}. Fund: ${info.walletAddress}`);
+    // X402: },
+    // X402: onInsufficientFunds: (info) => {
+    // X402:   console.error(
+    // X402:     `[ClawRouter] Insufficient funds. Balance: ${info.balanceUSD}, Need: ${info.requiredUSD}`,
+    // X402:   );
+    // X402:   console.error(`[ClawRouter] Need help? Run: npx @blockrun/clawrouter doctor`);
+    // X402: },
   });
-
-  // Check balance
-  const monitor = new BalanceMonitor(address);
-  try {
-    const balance = await monitor.checkBalance();
-    if (balance.isEmpty) {
-      console.log(`[ClawRouter] Wallet balance: $0.00 (using FREE model)`);
-      console.log(`[ClawRouter] Fund wallet for premium models: ${address}`);
-    } else if (balance.isLow) {
-      console.log(`[ClawRouter] Wallet balance: ${balance.balanceUSD} (low)`);
-    } else {
-      console.log(`[ClawRouter] Wallet balance: ${balance.balanceUSD}`);
-    }
-  } catch {
-    console.log(`[ClawRouter] Wallet: ${address} (balance check pending)`);
-  }
 
   console.log(`[ClawRouter] Ready - Ctrl+C to stop`);
 

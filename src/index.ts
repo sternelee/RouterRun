@@ -1,14 +1,14 @@
 /**
  * @blockrun/clawrouter
  *
- * Smart LLM router for OpenClaw — 30+ models, x402 micropayments, 78% cost savings.
+ * Smart LLM router for OpenClaw — 30+ models, direct API keys, 78% cost savings.
  * Routes each request to the cheapest model that can handle it.
  *
  * Usage:
  *   # Install the plugin
  *   openclaw plugins install @blockrun/clawrouter
  *
- *   # Fund your wallet with USDC on Base (address printed on install)
+ *   # Configure API keys (OPENROUTER_API_KEY, OPENAI_API_KEY, etc.)
  *
  *   # Use smart routing (auto-picks cheapest model)
  *   openclaw models set blockrun/auto
@@ -23,11 +23,12 @@ import type {
   PluginCommandContext,
   OpenClawPluginCommandDefinition,
 } from "./types.js";
-import { blockrunProvider, setActiveProxy } from "./provider.js";
+import { clawrouterProvider, setActiveProxy } from "./provider.js";
 import { startProxy, getProxyPort } from "./proxy.js";
-import { resolveOrGenerateWalletKey, WALLET_FILE } from "./auth.js";
+// X402: import { resolveOrGenerateWalletKey, WALLET_FILE } from "./auth.js";
 import type { RoutingConfig } from "./router/index.js";
-import { BalanceMonitor } from "./balance.js";
+// X402: import { BalanceMonitor } from "./balance.js";
+import { loadApiKeys, getConfiguredProviders, hasOpenRouter, getAccessibleProviders, type ApiKeysConfig } from "./api-keys.js";
 
 /**
  * Wait for proxy health check to pass (quick check, not RPC).
@@ -59,9 +60,10 @@ import { readTextFileSync } from "./fs-read.js";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { VERSION } from "./version.js";
-import { privateKeyToAccount } from "viem/accounts";
+// X402: import { privateKeyToAccount } from "viem/accounts";
 import { getStats, formatStatsAscii } from "./stats.js";
 import { buildPartnerTools, PARTNER_SERVICES } from "./partners/index.js";
+import { refreshOpenRouterModels } from "./openrouter-models.js";
 
 /**
  * Detect if we're running in shell completion mode.
@@ -88,13 +90,13 @@ function isGatewayMode(): boolean {
 }
 
 /**
- * Inject BlockRun models config into OpenClaw config file.
+ * Inject ClawRouter models config into OpenClaw config file.
  * This is required because registerProvider() alone doesn't make models available.
  *
  * CRITICAL: This function must be idempotent and handle ALL edge cases:
  * - Config file doesn't exist (create it)
  * - Config file exists but is empty/invalid (reinitialize)
- * - blockrun provider exists but has undefined fields (fix them)
+ * - clawrouter provider exists but has undefined fields (fix them)
  * - Config exists but uses old port/models (update them)
  *
  * This function is called on EVERY plugin load to ensure config is always correct.
@@ -170,41 +172,41 @@ function injectModelsConfig(logger: { info: (msg: string) => void }): void {
 
   const providers = models.providers as Record<string, unknown>;
 
-  if (!providers.blockrun) {
-    // Create new blockrun provider config
-    providers.blockrun = {
+  if (!providers.clawrouter) {
+    // Create new clawrouter provider config
+    providers.clawrouter = {
       baseUrl: expectedBaseUrl,
       api: "openai-completions",
       // apiKey is required by pi-coding-agent's ModelRegistry for providers with models.
-      // We use a placeholder since the proxy handles real x402 auth internally.
-      apiKey: "x402-proxy-handles-auth",
+      // We use a placeholder since the proxy handles real API key auth internally.
+      apiKey: "local-proxy",
       models: OPENCLAW_MODELS,
     };
-    logger.info("Injected BlockRun provider config");
+    logger.info("Injected ClawRouter provider config");
     needsWrite = true;
   } else {
-    // Validate and fix existing blockrun config
-    const blockrun = providers.blockrun as Record<string, unknown>;
+    // Validate and fix existing clawrouter config
+    const clawrouter = providers.clawrouter as Record<string, unknown>;
     let fixed = false;
 
     // Fix: explicitly check for undefined/missing fields
-    if (!blockrun.baseUrl || blockrun.baseUrl !== expectedBaseUrl) {
-      blockrun.baseUrl = expectedBaseUrl;
+    if (!clawrouter.baseUrl || clawrouter.baseUrl !== expectedBaseUrl) {
+      clawrouter.baseUrl = expectedBaseUrl;
       fixed = true;
     }
     // Ensure api field is present
-    if (!blockrun.api) {
-      blockrun.api = "openai-completions";
+    if (!clawrouter.api) {
+      clawrouter.api = "openai-completions";
       fixed = true;
     }
     // Ensure apiKey is present (required by ModelRegistry for /model picker)
-    if (!blockrun.apiKey) {
-      blockrun.apiKey = "x402-proxy-handles-auth";
+    if (!clawrouter.apiKey) {
+      clawrouter.apiKey = "local-proxy";
       fixed = true;
     }
     // Always refresh models list (ensures new models/aliases are available)
     // Check both length AND content - new models may be added without changing count
-    const currentModels = blockrun.models as Array<{ id?: string }>;
+    const currentModels = clawrouter.models as Array<{ id?: string }>;
     const currentModelIds = new Set(
       Array.isArray(currentModels) ? currentModels.map((m) => m?.id).filter(Boolean) : [],
     );
@@ -216,18 +218,18 @@ function injectModelsConfig(logger: { info: (msg: string) => void }): void {
       expectedModelIds.some((id) => !currentModelIds.has(id));
 
     if (needsModelUpdate) {
-      blockrun.models = OPENCLAW_MODELS;
+      clawrouter.models = OPENCLAW_MODELS;
       fixed = true;
       logger.info(`Updated models list (${OPENCLAW_MODELS.length} models)`);
     }
 
     if (fixed) {
-      logger.info("Fixed incomplete BlockRun provider config");
+      logger.info("Fixed incomplete ClawRouter provider config");
       needsWrite = true;
     }
   }
 
-  // Set blockrun/auto as default model ONLY on first install (not every load!)
+  // Set clawrouter/auto as default model ONLY on first install (not every load!)
   // This respects user's model selection and prevents hijacking their choice.
   if (!config.agents) {
     config.agents = {};
@@ -248,8 +250,8 @@ function injectModelsConfig(logger: { info: (msg: string) => void }): void {
   // ONLY set default if no primary model exists (first install)
   // Do NOT override user's selection on subsequent loads
   if (!model.primary) {
-    model.primary = "blockrun/auto";
-    logger.info("Set default model to blockrun/auto (first install)");
+    model.primary = "clawrouter/auto";
+    logger.info("Set default model to clawrouter/auto (first install)");
     needsWrite = true;
   }
 
@@ -276,12 +278,12 @@ function injectModelsConfig(logger: { info: (msg: string) => void }): void {
 
   // Deprecated aliases to remove from config (cleaned up from picker)
   const DEPRECATED_ALIASES = [
-    "blockrun/nvidia",
-    "blockrun/gpt",
-    "blockrun/o3",
-    "blockrun/grok",
-    "blockrun/mini",
-    "blockrun/flash", // removed from picker - use gemini instead
+    "clawrouter/nvidia",
+    "clawrouter/gpt",
+    "clawrouter/o3",
+    "clawrouter/grok",
+    "clawrouter/mini",
+    "clawrouter/flash", // removed from picker - use gemini instead
   ];
 
   if (!defaults.models) {
@@ -302,7 +304,7 @@ function injectModelsConfig(logger: { info: (msg: string) => void }): void {
 
   // Add current aliases (and update stale aliases)
   for (const m of KEY_MODEL_ALIASES) {
-    const fullId = `blockrun/${m.id}`;
+    const fullId = `clawrouter/${m.id}`;
     const existing = allowlist[fullId] as Record<string, unknown> | undefined;
     if (!existing) {
       allowlist[fullId] = { alias: m.alias };
@@ -321,7 +323,7 @@ function injectModelsConfig(logger: { info: (msg: string) => void }): void {
       const tmpPath = `${configPath}.tmp.${process.pid}`;
       writeFileSync(tmpPath, JSON.stringify(config, null, 2));
       renameSync(tmpPath, configPath);
-      logger.info("Smart routing enabled (blockrun/auto)");
+      logger.info("Smart routing enabled (clawrouter/auto)");
     } catch (err) {
       logger.info(`Failed to write config: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -329,7 +331,7 @@ function injectModelsConfig(logger: { info: (msg: string) => void }): void {
 }
 
 /**
- * Inject dummy auth profile for BlockRun into agent auth stores.
+ * Inject dummy auth profile for ClawRouter into agent auth stores.
  * OpenClaw's agent system looks for auth credentials even if provider has auth: [].
  * We inject a placeholder so the lookup succeeds (proxy handles real auth internally).
  */
@@ -391,23 +393,23 @@ function injectAuthProfile(logger: { info: (msg: string) => void }): void {
         }
       }
 
-      // Check if blockrun auth already exists (OpenClaw format: profiles["provider:profileId"])
-      const profileKey = "blockrun:default";
+      // Check if clawrouter auth already exists (OpenClaw format: profiles["provider:profileId"])
+      const profileKey = "clawrouter:default";
       if (store.profiles[profileKey]) {
         continue; // Already configured
       }
 
-      // Inject placeholder auth for blockrun (OpenClaw format)
-      // The proxy handles real x402 auth internally, this just satisfies OpenClaw's lookup
+      // Inject placeholder auth for clawrouter (OpenClaw format)
+      // The proxy handles real API key auth internally, this just satisfies OpenClaw's lookup
       store.profiles[profileKey] = {
         type: "api_key",
-        provider: "blockrun",
-        key: "x402-proxy-handles-auth",
+        provider: "clawrouter",
+        key: "local-proxy-handles-auth",
       };
 
       try {
         writeFileSync(authPath, JSON.stringify(store, null, 2));
-        logger.info(`Injected BlockRun auth profile for agent: ${agentId}`);
+        logger.info(`Injected ClawRouter auth profile for agent: ${agentId}`);
       } catch (err) {
         logger.info(
           `Could not inject auth for ${agentId}: ${err instanceof Error ? err.message : String(err)}`,
@@ -423,81 +425,102 @@ function injectAuthProfile(logger: { info: (msg: string) => void }): void {
 let activeProxyHandle: Awaited<ReturnType<typeof startProxy>> | null = null;
 
 /**
- * Start the x402 proxy in the background.
+ * Start the API key proxy in the background.
  * Called from register() because OpenClaw's loader only invokes register(),
  * treating activate() as an alias (def.register ?? def.activate).
  */
-async function startProxyInBackground(api: OpenClawPluginApi): Promise<void> {
-  // Resolve wallet key: saved file → env var → auto-generate
-  const { key: walletKey, address, source } = await resolveOrGenerateWalletKey();
+async function startProxyInBackground(api: OpenClawPluginApi, apiKeys: ApiKeysConfig): Promise<void> {
+  const configuredProviders = getConfiguredProviders(apiKeys);
+  const orFallback = hasOpenRouter(apiKeys);
+  const accessibleProviders = getAccessibleProviders(apiKeys);
 
-  // Log wallet source
-  if (source === "generated") {
-    api.logger.warn(`════════════════════════════════════════════════`);
-    api.logger.warn(`  NEW WALLET GENERATED — BACK UP YOUR KEY NOW!`);
-    api.logger.warn(`  Address : ${address}`);
-    api.logger.warn(`  Run /wallet export to get your private key`);
-    api.logger.warn(`  Losing this key = losing your USDC funds`);
-    api.logger.warn(`════════════════════════════════════════════════`);
-  } else if (source === "saved") {
-    api.logger.info(`Using saved wallet: ${address}`);
-  } else {
-    api.logger.info(`Using wallet from BLOCKRUN_WALLET_KEY: ${address}`);
+  api.logger.info(
+    `Configured providers: ${configuredProviders.join(", ") || "(none)"}${orFallback ? " (OpenRouter covers all)" : ""}`,
+  );
+
+  if (configuredProviders.length === 0) {
+    api.logger.warn(
+      "No API keys configured! Set OPENROUTER_API_KEY for all models, or individual keys (OPENAI_API_KEY, etc.).",
+    );
+    return;
   }
+
+  // X402: // Resolve wallet key: saved file → env var → auto-generate
+  // X402: const { key: walletKey, address, source } = await resolveOrGenerateWalletKey();
+  // X402:
+  // X402: // Log wallet source
+  // X402: if (source === "generated") {
+  // X402:   api.logger.warn(`════════════════════════════════════════════════`);
+  // X402:   api.logger.warn(`  NEW WALLET GENERATED — BACK UP YOUR KEY NOW!`);
+  // X402:   api.logger.warn(`  Address : ${address}`);
+  // X402:   api.logger.warn(`  Run /wallet export to get your private key`);
+  // X402:   api.logger.warn(`  Losing this key = losing your USDC funds`);
+  // X402:   api.logger.warn(`════════════════════════════════════════════════`);
+  // X402: } else if (source === "saved") {
+  // X402:   api.logger.info(`Using saved wallet: ${address}`);
+  // X402: } else {
+  // X402:   api.logger.info(`Using wallet from BLOCKRUN_WALLET_KEY: ${address}`);
+  // X402: }
 
   // Resolve routing config overrides from plugin config
   const routingConfig = api.pluginConfig?.routing as Partial<RoutingConfig> | undefined;
 
   const proxy = await startProxy({
-    walletKey,
+    apiKeys,
     routingConfig,
     onReady: (port) => {
-      api.logger.info(`BlockRun x402 proxy listening on port ${port}`);
+      api.logger.info(`ClawRouter API key proxy listening on port ${port}`);
     },
     onError: (error) => {
-      api.logger.error(`BlockRun proxy error: ${error.message}`);
+      api.logger.error(`ClawRouter proxy error: ${error.message}`);
     },
     onRouted: (decision) => {
       const cost = decision.costEstimate.toFixed(4);
       const saved = (decision.savings * 100).toFixed(0);
       api.logger.info(
-        `[${decision.tier}] ${decision.model} $${cost} (saved ${saved}%) | ${decision.reasoning}`,
+        `[${decision.tier}] ${decision.model} ~$${cost} (saved ${saved}%) | ${decision.reasoning}`,
       );
     },
-    onLowBalance: (info) => {
-      api.logger.warn(`[!] Low balance: ${info.balanceUSD}. Fund wallet: ${info.walletAddress}`);
-    },
-    onInsufficientFunds: (info) => {
-      api.logger.error(
-        `[!] Insufficient funds. Balance: ${info.balanceUSD}, Needed: ${info.requiredUSD}. Fund wallet: ${info.walletAddress}`,
-      );
-    },
+    // X402: onLowBalance: (info) => {
+    // X402:   api.logger.warn(`[!] Low balance: ${info.balanceUSD}. Fund wallet: ${info.walletAddress}`);
+    // X402: },
+    // X402: onInsufficientFunds: (info) => {
+    // X402:   api.logger.error(
+    // X402:     `[!] Insufficient funds. Balance: ${info.balanceUSD}, Needed: ${info.requiredUSD}. Fund wallet: ${info.walletAddress}`,
+    // X402:   );
+    // X402: },
   });
 
   setActiveProxy(proxy);
   activeProxyHandle = proxy;
 
-  api.logger.info(`ClawRouter ready — smart routing enabled`);
+  api.logger.info(`ClawRouter ready — ${accessibleProviders.length} providers accessible, smart routing enabled`);
   api.logger.info(`Pricing: Simple ~$0.001 | Code ~$0.01 | Complex ~$0.05 | Free: $0`);
 
-  // Non-blocking balance check AFTER proxy is ready (won't hang startup)
-  const startupMonitor = new BalanceMonitor(address);
-  startupMonitor
-    .checkBalance()
-    .then((balance) => {
-      if (balance.isEmpty) {
-        api.logger.info(`Wallet: ${address} | Balance: $0.00`);
-        api.logger.info(`Using FREE model. Fund wallet for premium models.`);
-      } else if (balance.isLow) {
-        api.logger.info(`Wallet: ${address} | Balance: ${balance.balanceUSD} (low)`);
-      } else {
-        api.logger.info(`Wallet: ${address} | Balance: ${balance.balanceUSD}`);
-      }
-    })
-    .catch(() => {
-      // Silently continue - balance will be checked per-request anyway
-      api.logger.info(`Wallet: ${address} | Balance: (checking...)`);
-    });
+  // X402: // Non-blocking balance check AFTER proxy is ready (won't hang startup)
+  // X402: const startupMonitor = new BalanceMonitor(address);
+  // X402: startupMonitor
+  // X402:   .checkBalance()
+  // X402:   .then((balance) => {
+  // X402:     if (balance.isEmpty) {
+  // X402:       api.logger.info(`Wallet: ${address} | Balance: $0.00`);
+  // X402:       api.logger.info(`Using FREE model. Fund wallet for premium models.`);
+  // X402:     } else if (balance.isLow) {
+  // X402:       api.logger.info(`Wallet: ${address} | Balance: ${balance.balanceUSD} (low)`);
+  // X402:     } else {
+  // X402:       api.logger.info(`Wallet: ${address} | Balance: ${balance.balanceUSD}`);
+  // X402:     }
+  // X402:   })
+  // X402:   .catch(() => {
+  // X402:     // Silently continue - balance will be checked per-request anyway
+  // X402:     api.logger.info(`Wallet: ${address} | Balance: (checking...)`);
+  // X402:   });
+
+  // Pre-load OpenRouter model catalog for ID resolution
+  if (hasOpenRouter(apiKeys)) {
+    const orKey = apiKeys.providers.openrouter.apiKey;
+    refreshOpenRouterModels(orKey).catch((err) => api.logger.warn(`Failed to load OpenRouter models: ${err.message}`));
+  }
 }
 
 /**
@@ -532,97 +555,153 @@ async function createStatsCommand(): Promise<OpenClawPluginCommandDefinition> {
 }
 
 /**
- * /wallet command handler for ClawRouter.
- * - /wallet or /wallet status: Show wallet address, balance, and key file location
- * - /wallet export: Show private key for backup (with security warning)
+ * /keys command handler for ClawRouter.
+ * Shows configured API key status (no secrets shown).
  */
-async function createWalletCommand(): Promise<OpenClawPluginCommandDefinition> {
+async function createKeysCommand(apiKeys: ApiKeysConfig): Promise<OpenClawPluginCommandDefinition> {
   return {
-    name: "wallet",
-    description: "Show BlockRun wallet info or export private key for backup",
-    acceptsArgs: true,
+    name: "keys",
+    description: "Show configured API key status (no secrets shown)",
+    acceptsArgs: false,
     requireAuth: true,
-    handler: async (ctx: PluginCommandContext) => {
-      const subcommand = ctx.args?.trim().toLowerCase() || "status";
-
-      // Read wallet key if it exists
-      let walletKey: string | undefined;
-      let address: string | undefined;
-      try {
-        if (existsSync(WALLET_FILE)) {
-          walletKey = readTextFileSync(WALLET_FILE).trim();
-          if (walletKey.startsWith("0x") && walletKey.length === 66) {
-            const account = privateKeyToAccount(walletKey as `0x${string}`);
-            address = account.address;
-          }
-        }
-      } catch {
-        // Wallet file doesn't exist or is invalid
-      }
-
-      if (!walletKey || !address) {
-        return {
-          text: `No ClawRouter wallet found.\n\nRun \`openclaw plugins install @blockrun/clawrouter\` to generate a wallet.`,
-          isError: true,
-        };
-      }
-
-      if (subcommand === "export") {
-        // Export private key for backup
+    handler: async () => {
+      const providers = getConfiguredProviders(apiKeys);
+      if (providers.length === 0) {
         return {
           text: [
-            "🔐 **ClawRouter Wallet Export**",
+            "🔑 **ClawRouter API Keys**",
             "",
-            "⚠️ **SECURITY WARNING**: Your private key controls your wallet funds.",
-            "Never share this key. Anyone with this key can spend your USDC.",
+            "No API keys configured!",
             "",
-            `**Address:** \`${address}\``,
+            "**Quickest setup (one key → all models):**",
+            "• `OPENROUTER_API_KEY=sk-or-...`",
             "",
-            `**Private Key:**`,
-            `\`${walletKey}\``,
+            "**Or configure individual providers:**",
+            "• `OPENAI_API_KEY=sk-...`",
+            "• `ANTHROPIC_API_KEY=sk-ant-...`",
+            "• `GOOGLE_API_KEY=AIza...`",
+            "• `XAI_API_KEY=xai-...`",
+            "• `DEEPSEEK_API_KEY=sk-...`",
             "",
-            "**To restore on a new machine:**",
-            "1. Set the environment variable before running OpenClaw:",
-            `   \`export BLOCKRUN_WALLET_KEY=${walletKey}\``,
-            "2. Or save to file:",
-            `   \`mkdir -p ~/.openclaw/blockrun && echo "${walletKey}" > ~/.openclaw/blockrun/wallet.key && chmod 600 ~/.openclaw/blockrun/wallet.key\``,
+            "**Or edit:** `~/.openclaw/clawrouter/config.json`",
           ].join("\n"),
         };
       }
 
-      // Default: show wallet status
-      let balanceText = "Balance: (checking...)";
-      try {
-        const monitor = new BalanceMonitor(address);
-        const balance = await monitor.checkBalance();
-        balanceText = `Balance: ${balance.balanceUSD}`;
-      } catch {
-        balanceText = "Balance: (could not check)";
-      }
+      const orActive = hasOpenRouter(apiKeys);
+      const accessible = getAccessibleProviders(apiKeys);
+      const lines = [
+        "🔑 **ClawRouter API Keys**",
+        "",
+        ...providers.map((p) => {
+          const key = apiKeys.providers[p]?.apiKey || "";
+          const masked = key.length > 8 ? key.slice(0, 4) + "..." + key.slice(-4) : "****";
+          const label = p === "openrouter" ? `${p} (fallback for all providers)` : p;
+          return `• **${label}**: \`${masked}\` ✅`;
+        }),
+        "",
+        orActive
+          ? `**${accessible.length} providers accessible** (${providers.filter((p) => p !== "openrouter").length} direct + OpenRouter fallback)`
+          : `**${providers.length} providers configured**`,
+      ];
 
-      return {
-        text: [
-          "🦞 **ClawRouter Wallet**",
-          "",
-          `**Address:** \`${address}\``,
-          `**${balanceText}**`,
-          `**Key File:** \`${WALLET_FILE}\``,
-          "",
-          "**Commands:**",
-          "• `/wallet` - Show this status",
-          "• `/wallet export` - Export private key for backup",
-          "",
-          `**Fund with USDC on Base:** https://basescan.org/address/${address}`,
-        ].join("\n"),
-      };
+      return { text: lines.join("\n") };
     },
   };
 }
 
+/**
+ * /wallet command handler for ClawRouter (X402 mode - commented out).
+ * X402: Shows wallet address, balance, and key file location
+ * X402: /wallet export: Shows private key for backup (with security warning)
+ */
+// X402: async function createWalletCommand(): Promise<OpenClawPluginCommandDefinition> {
+// X402:   return {
+// X402:     name: "wallet",
+// X402:     description: "Show BlockRun wallet info or export private key for backup",
+// X402:     acceptsArgs: true,
+// X402:     requireAuth: true,
+// X402:     handler: async (ctx: PluginCommandContext) => {
+// X402:       const subcommand = ctx.args?.trim().toLowerCase() || "status";
+// X402:
+// X402:       // Read wallet key if it exists
+// X402:       let walletKey: string | undefined;
+// X402:       let address: string | undefined;
+// X402:       try {
+// X402:         if (existsSync(WALLET_FILE)) {
+// X402:           walletKey = readTextFileSync(WALLET_FILE).trim();
+// X402:           if (walletKey.startsWith("0x") && walletKey.length === 66) {
+// X402:             const account = privateKeyToAccount(walletKey as `0x${string}`);
+// X402:             address = account.address;
+// X402:           }
+// X402:         }
+// X402:       } catch {
+// X402:         // Wallet file doesn't exist or is invalid
+// X402:       }
+// X402:
+// X402:       if (!walletKey || !address) {
+// X402:         return {
+// X402:           text: `No ClawRouter wallet found.\n\nRun \`openclaw plugins install @blockrun/clawrouter\` to generate a wallet.`,
+// X402:           isError: true,
+// X402:         };
+// X402:       }
+// X402:
+// X402:       if (subcommand === "export") {
+// X402:         // Export private key for backup
+// X402:         return {
+// X402:           text: [
+// X402:             "🔐 **ClawRouter Wallet Export**",
+// X402:             "",
+// X402:             "⚠️ **SECURITY WARNING**: Your private key controls your wallet funds.",
+// X402:             "Never share this key. Anyone with this key can spend your USDC.",
+// X402:             "",
+// X402:             `**Address:** \`${address}\``,
+// X402:             "",
+// X402:             `**Private Key:**`,
+// X402:             `\`${walletKey}\``,
+// X402:             "",
+// X402:             "**To restore on a new machine:**",
+// X402:             "1. Set the environment variable before running OpenClaw:",
+// X402:             `   \`export BLOCKRUN_WALLET_KEY=${walletKey}\``,
+// X402:             "2. Or save to file:",
+// X402:             `   \`mkdir -p ~/.openclaw/blockrun && echo "${walletKey}" > ~/.openclaw/blockrun/wallet.key && chmod 600 ~/.openclaw/blockrun/wallet.key\``,
+// X402:           ].join("\n"),
+// X402:         };
+// X402:       }
+// X402:
+// X402:       // Default: show wallet status
+// X402:       let balanceText = "Balance: (checking...)";
+// X402:       try {
+// X402:         const monitor = new BalanceMonitor(address);
+// X402:         const balance = await monitor.checkBalance();
+// X402:         balanceText = `Balance: ${balance.balanceUSD}`;
+// X402:       } catch {
+// X402:         balanceText = "Balance: (could not check)";
+// X402:       }
+// X402:
+// X402:       return {
+// X402:         text: [
+// X402:           "🦞 **ClawRouter Wallet**",
+// X402:           "",
+// X402:           `**Address:** \`${address}\``,
+// X402:           `**${balanceText}**`,
+// X402:           `**Key File:** \`${WALLET_FILE}\``,
+// X402:           "",
+// X402:           "**Commands:**",
+// X402:           "• `/wallet` - Show this status",
+// X402:           "• `/wallet export` - Export private key for backup",
+// X402:           "",
+// X402:           `**Fund with USDC on Base:** https://basescan.org/address/${address}`,
+// X402:         ].join("\n"),
+// X402:       };
+// X402:     },
+// X402:   };
+// X402: }
+
 const plugin: OpenClawPluginDefinition = {
   id: "clawrouter",
   name: "ClawRouter",
-  description: "Smart LLM router — 30+ models, x402 micropayments, 78% cost savings",
+  description: "Smart LLM router — your keys, smart routing, maximum savings",
   version: VERSION,
 
   register(api: OpenClawPluginApi) {
@@ -638,12 +717,15 @@ const plugin: OpenClawPluginDefinition = {
     // Skip heavy initialization in completion mode — only completion script is needed
     // Logging to stdout during completion pollutes the script and causes zsh errors
     if (isCompletionMode()) {
-      api.registerProvider(blockrunProvider);
+      api.registerProvider(clawrouterProvider);
       return;
     }
 
-    // Register BlockRun as a provider (sync — available immediately)
-    api.registerProvider(blockrunProvider);
+    // Load API keys
+    const apiKeys = loadApiKeys(api.pluginConfig);
+
+    // Register ClawRouter as a provider (sync — available immediately)
+    api.registerProvider(clawrouterProvider);
 
     // Inject models config into OpenClaw config file
     // This persists the config so models are recognized on restart
@@ -661,17 +743,21 @@ const plugin: OpenClawPluginDefinition = {
     if (!api.config.models.providers) {
       api.config.models.providers = {};
     }
-    api.config.models.providers.blockrun = {
+    api.config.models.providers.clawrouter = {
       baseUrl: `http://127.0.0.1:${runtimePort}/v1`,
       api: "openai-completions",
       // apiKey is required by pi-coding-agent's ModelRegistry for providers with models.
-      apiKey: "x402-proxy-handles-auth",
+      apiKey: "local-proxy",
       models: OPENCLAW_MODELS,
     };
 
-    api.logger.info("BlockRun provider registered (30+ models via x402)");
+    // X402: api.logger.info("BlockRun provider registered (30+ models via x402)");
+    api.logger.info(
+      `ClawRouter provider registered (${getConfiguredProviders(apiKeys).length} providers: ${getConfiguredProviders(apiKeys).join(", ") || "none"})`,
+    );
 
     // Register partner API tools (Twitter/X lookup, etc.)
+    // X402: Note: Partner APIs require provider API keys to be configured
     try {
       const proxyBaseUrl = `http://127.0.0.1:${runtimePort}`;
       const partnerTools = buildPartnerTools(proxyBaseUrl);
@@ -695,12 +781,15 @@ const plugin: OpenClawPluginDefinition = {
             return { text: "No partner APIs available." };
           }
 
-          const lines = ["**Partner APIs** (paid via your ClawRouter wallet)", ""];
+          const lines = [
+            "**Partner APIs** (requires provider API keys for access)",
+            "",
+          ];
 
           for (const svc of PARTNER_SERVICES) {
             lines.push(`**${svc.name}** (${svc.partner})`);
             lines.push(`  ${svc.description}`);
-            lines.push(`  Tool: \`${`blockrun_${svc.id}`}\``);
+            lines.push(`  Tool: \`${`clawrouter_${svc.id}`}\``);
             lines.push(
               `  Pricing: ${svc.pricing.perUnit} per ${svc.pricing.unit} (min ${svc.pricing.minimum}, max ${svc.pricing.maximum})`,
             );
@@ -719,14 +808,25 @@ const plugin: OpenClawPluginDefinition = {
       );
     }
 
-    // Register /wallet command for wallet management
-    createWalletCommand()
-      .then((walletCommand) => {
-        api.registerCommand(walletCommand);
+    // X402: // Register /wallet command for wallet management
+    // X402: createWalletCommand()
+    // X402:   .then((walletCommand) => {
+    // X402:     api.registerCommand(walletCommand);
+    // X402:   })
+    // X402:   .catch((err) => {
+    // X402:     api.logger.warn(
+    // X402:       `Failed to register /wallet command: ${err instanceof Error ? err.message : String(err)}`,
+    // X402:     );
+    // X402:   });
+
+    // Register /keys command for API key status
+    createKeysCommand(apiKeys)
+      .then((keysCommand) => {
+        api.registerCommand(keysCommand);
       })
       .catch((err) => {
         api.logger.warn(
-          `Failed to register /wallet command: ${err instanceof Error ? err.message : String(err)}`,
+          `Failed to register /keys command: ${err instanceof Error ? err.message : String(err)}`,
         );
       });
 
@@ -753,7 +853,7 @@ const plugin: OpenClawPluginDefinition = {
         if (activeProxyHandle) {
           try {
             await activeProxyHandle.close();
-            api.logger.info("BlockRun proxy closed");
+            api.logger.info("ClawRouter proxy closed");
           } catch (err) {
             api.logger.warn(
               `Failed to close proxy: ${err instanceof Error ? err.message : String(err)}`,
@@ -768,37 +868,37 @@ const plugin: OpenClawPluginDefinition = {
     // The proxy keeps the Node.js event loop alive, preventing CLI commands from exiting
     // The proxy will start automatically when the gateway runs
     if (!isGatewayMode()) {
-      // Generate wallet on first install (even outside gateway mode)
-      // This ensures users can see their wallet address immediately after install
-      resolveOrGenerateWalletKey()
-        .then(({ address, source }) => {
-          if (source === "generated") {
-            api.logger.warn(`════════════════════════════════════════════════`);
-            api.logger.warn(`  NEW WALLET GENERATED — BACK UP YOUR KEY NOW!`);
-            api.logger.warn(`  Address : ${address}`);
-            api.logger.warn(`  Run /wallet export to get your private key`);
-            api.logger.warn(`  Losing this key = losing your USDC funds`);
-            api.logger.warn(`════════════════════════════════════════════════`);
-          } else if (source === "saved") {
-            api.logger.info(`Using saved wallet: ${address}`);
-          } else {
-            api.logger.info(`Using wallet from BLOCKRUN_WALLET_KEY: ${address}`);
-          }
-        })
-        .catch((err) => {
-          api.logger.warn(
-            `Failed to initialize wallet: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        });
+      // X402: // Generate wallet on first install (even outside gateway mode)
+      // X402: // This ensures users can see their wallet address immediately after install
+      // X402: resolveOrGenerateWalletKey()
+      // X402:   .then(({ address, source }) => {
+      // X402:     if (source === "generated") {
+      // X402:       api.logger.warn(`════════════════════════════════════════════════`);
+      // X402:       api.logger.warn(`  NEW WALLET GENERATED — BACK UP YOUR KEY NOW!`);
+      // X402:       api.logger.warn(`  Address : ${address}`);
+      // X402:       api.logger.warn(`  Run /wallet export to get your private key`);
+      // X402:       api.logger.warn(`  Losing this key = losing your USDC funds`);
+      // X402:       api.logger.warn(`════════════════════════════════════════════════`);
+      // X402:     } else if (source === "saved") {
+      // X402:       api.logger.info(`Using saved wallet: ${address}`);
+      // X402:     } else {
+      // X402:       api.logger.info(`Using wallet from BLOCKRUN_WALLET_KEY: ${address}`);
+      // X402:     }
+      // X402:   })
+      // X402:   .catch((err) => {
+      // X402:     api.logger.warn(
+      // X402:       `Failed to initialize wallet: ${err instanceof Error ? err.message : String(err)}`,
+      // X402:     );
+      // X402:   });
       api.logger.info("Not in gateway mode — proxy will start when gateway runs");
       return;
     }
 
-    // Start x402 proxy in background WITHOUT blocking register()
+    // Start API key proxy in background WITHOUT blocking register()
     // CRITICAL: Do NOT await here - this was blocking model selection UI for 3+ seconds
     // causing Chandler's "infinite loop" issue where model selection never finishes
-    // Note: startProxyInBackground calls resolveOrGenerateWalletKey internally
-    startProxyInBackground(api)
+    // X402: Note: startProxyInBackground calls resolveOrGenerateWalletKey internally
+    startProxyInBackground(api, apiKeys)
       .then(async () => {
         // Proxy started successfully - verify health
         const port = getProxyPort();
@@ -809,7 +909,7 @@ const plugin: OpenClawPluginDefinition = {
       })
       .catch((err) => {
         api.logger.error(
-          `Failed to start BlockRun proxy: ${err instanceof Error ? err.message : String(err)}`,
+          `Failed to start ClawRouter proxy: ${err instanceof Error ? err.message : String(err)}`,
         );
       });
   },
@@ -820,7 +920,7 @@ export default plugin;
 // Re-export for programmatic use
 export { startProxy, getProxyPort } from "./proxy.js";
 export type { ProxyOptions, ProxyHandle, LowBalanceInfo, InsufficientFundsInfo } from "./proxy.js";
-export { blockrunProvider } from "./provider.js";
+export { clawrouterProvider } from "./provider.js";
 export {
   OPENCLAW_MODELS,
   BLOCKRUN_MODELS,
@@ -843,21 +943,21 @@ export { logUsage } from "./logger.js";
 export type { UsageEntry } from "./logger.js";
 export { RequestDeduplicator } from "./dedup.js";
 export type { CachedResponse } from "./dedup.js";
-export { PaymentCache } from "./payment-cache.js";
-export type { CachedPaymentParams } from "./payment-cache.js";
-export { createPaymentFetch } from "./x402.js";
-export type { PreAuthParams, PaymentFetchResult } from "./x402.js";
-export { BalanceMonitor, BALANCE_THRESHOLDS } from "./balance.js";
-export type { BalanceInfo, SufficiencyResult } from "./balance.js";
-export {
-  InsufficientFundsError,
-  EmptyWalletError,
-  RpcError,
-  isInsufficientFundsError,
-  isEmptyWalletError,
-  isBalanceError,
-  isRpcError,
-} from "./errors.js";
+// X402: export { PaymentCache } from "./payment-cache.js";
+// X402: export type { CachedPaymentParams } from "./payment-cache.js";
+// X402: export { createPaymentFetch } from "./x402.js";
+// X402: export type { PreAuthParams, PaymentFetchResult } from "./x402.js";
+// X402: export { BalanceMonitor, BALANCE_THRESHOLDS } from "./balance.js";
+// X402: export type { BalanceInfo, SufficiencyResult } from "./balance.js";
+// X402: export {
+// X402:   InsufficientFundsError,
+// X402:   EmptyWalletError,
+// X402:   RpcError,
+// X402:   isInsufficientFundsError,
+// X402:   isEmptyWalletError,
+// X402:   isBalanceError,
+// X402:   isRpcError,
+// X402: } from "./errors.js";
 export { fetchWithRetry, isRetryable, DEFAULT_RETRY_CONFIG } from "./retry.js";
 export type { RetryConfig } from "./retry.js";
 export { getStats, formatStatsAscii } from "./stats.js";
@@ -868,3 +968,15 @@ export { ResponseCache } from "./response-cache.js";
 export type { CachedLLMResponse, ResponseCacheConfig } from "./response-cache.js";
 export { PARTNER_SERVICES, getPartnerService, buildPartnerTools } from "./partners/index.js";
 export type { PartnerServiceDefinition, PartnerToolDefinition } from "./partners/index.js";
+export {
+  loadApiKeys,
+  getConfiguredProviders,
+  getApiKey,
+  getProviderFromModel,
+  resolveProviderAccess,
+  hasOpenRouter,
+  getAccessibleProviders,
+  isModelAccessible,
+} from "./api-keys.js";
+export type { ApiKeysConfig, ProviderConfig } from "./api-keys.js";
+export { refreshOpenRouterModels, resolveOpenRouterModelId, isOpenRouterCacheReady } from "./openrouter-models.js";

@@ -1,99 +1,101 @@
 /**
- * Partner Tool Builder
+ * X402: Partner Tool Builder
  *
- * Converts partner service definitions into OpenClaw tool definitions.
- * Each tool's execute() calls through the local proxy which handles
- * x402 payment transparently using the same wallet.
+ * X402: This entire module is for x402 payment mode with BlockRun API proxy.
+ * X402: For API Key mode, this functionality is disabled.
+ *
+ * X402: Converts partner service definitions into OpenClaw tool definitions.
+ * X402: Each tool's execute() calls through the local proxy which handles
+ * X402: x402 payment transparently using the same wallet.
  */
 
-import { PARTNER_SERVICES, type PartnerServiceDefinition } from "./registry.js";
+// X402: import { PARTNER_SERVICES, type PartnerServiceDefinition } from "./registry.js";
 
-/** OpenClaw tool definition shape (duck-typed) */
-export type PartnerToolDefinition = {
-  name: string;
-  description: string;
-  parameters: {
-    type: "object";
-    properties: Record<string, unknown>;
-    required: string[];
-  };
-  execute: (toolCallId: string, params: Record<string, unknown>) => Promise<unknown>;
-};
+// X402: /** OpenClaw tool definition shape (duck-typed) */
+// X402: export type PartnerToolDefinition = {
+// X402:   name: string;
+// X402:   description: string;
+// X402:   parameters: {
+// X402:     type: "object";
+// X402:     properties: Record<string, unknown>;
+// X402:     required: string[];
+// X402:   };
+// X402:   execute: (toolCallId: string, params: Record<string, unknown>) => Promise<unknown>;
+// X402: };
 
-/**
- * Build a single partner tool from a service definition.
- */
-function buildTool(service: PartnerServiceDefinition, proxyBaseUrl: string): PartnerToolDefinition {
-  // Build JSON Schema properties from service params
-  const properties: Record<string, unknown> = {};
-  const required: string[] = [];
+// X402: /**
+// X402:  * Build a single partner tool from a service definition.
+// X402:  */
+// X402: function buildTool(service: PartnerServiceDefinition, proxyBaseUrl: string): PartnerToolDefinition {
+// X402:   // Build JSON Schema properties from service params
+// X402:   const properties: Record<string, unknown> = {};
+// X402:   const required: string[] = [];
 
-  for (const param of service.params) {
-    const prop: Record<string, unknown> = {
-      description: param.description,
-    };
+// X402:   for (const param of service.params) {
+// X402:     const prop: Record<string, unknown> = {
+// X402:       description: param.description,
+// X402:     };
 
-    if (param.type === "string[]") {
-      prop.type = "array";
-      prop.items = { type: "string" };
-    } else {
-      prop.type = param.type;
-    }
+// X402:     if (param.type === "string[]") {
+// X402:       prop.type = "array";
+// X402:       prop.items = { type: "string" };
+// X402:     } else {
+// X402:       prop.type = param.type;
+// X402:     }
 
-    properties[param.name] = prop;
-    if (param.required) {
-      required.push(param.name);
-    }
-  }
+// X402:     properties[param.name] = prop;
+// X402:     if (param.required) {
+// X402:       required.push(param.name);
+// X402:     }
+// X402:   }
 
-  return {
-    name: `blockrun_${service.id}`,
-    description: [
-      service.description,
-      "",
-      `Partner: ${service.partner}`,
-      `Pricing: ${service.pricing.perUnit} per ${service.pricing.unit} (min: ${service.pricing.minimum}, max: ${service.pricing.maximum})`,
-    ].join("\n"),
-    parameters: {
-      type: "object",
-      properties,
-      required,
-    },
-    execute: async (_toolCallId: string, params: Record<string, unknown>) => {
-      const url = `${proxyBaseUrl}/v1${service.proxyPath}`;
+// X402:   return {
+// X402:     name: `blockrun_${service.id}`,
+// X402:     description: [
+// X402:       service.description,
+// X402:       "",
+// X402:       `Partner: ${service.partner}`,
+// X402:       `Pricing: ${service.pricing.perUnit} per ${service.pricing.unit} (min: ${service.pricing.minimum}, max: ${service.pricing.maximum})`,
+// X402:     ].join("\n"),
+// X402:     parameters: {
+// X402:       type: "object",
+// X402:       properties,
+// X402:       required,
+// X402:     },
+// X402:     execute: async (_toolCallId: string, params: Record<string, unknown>) => {
+// X402:       const url = `${proxyBaseUrl}/v1${service.proxyPath}`;
+// X402:
+// X402:       const response = await fetch(url, {
+// X402:         method: service.method,
+// X402:         headers: { "Content-Type": "application/json" },
+// X402:         body: JSON.stringify(params),
+// X402:       });
+// X402:
+// X402:       if (!response.ok) {
+// X402:         const errText = await response.text().catch(() => "");
+// X402:         throw new Error(
+// X402:           `Partner API error (${response.status}): ${errText || response.statusText}`,
+// X402:         );
+// X402:       }
+// X402:
+// X402:       const data = await response.json();
+// X402:       return {
+// X402:         content: [
+// X402:           {
+// X402:             type: "text",
+// X402:             text: JSON.stringify(data, null, 2),
+// X402:           },
+// X402:         ],
+// X402:         details: data,
+// X402:       };
+// X402:     },
+// X402:   };
+// X402: }
 
-      const response = await fetch(url, {
-        method: service.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(params),
-      });
-
-      if (!response.ok) {
-        const errText = await response.text().catch(() => "");
-        throw new Error(
-          `Partner API error (${response.status}): ${errText || response.statusText}`,
-        );
-      }
-
-      const data = await response.json();
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(data, null, 2),
-          },
-        ],
-        details: data,
-      };
-    },
-  };
-}
-
-/**
- * Build OpenClaw tool definitions for all registered partner services.
- * @param proxyBaseUrl - Local proxy base URL (e.g., "http://127.0.0.1:8402")
- */
-export function buildPartnerTools(proxyBaseUrl: string): PartnerToolDefinition[] {
-  return PARTNER_SERVICES.map((service) => buildTool(service, proxyBaseUrl));
-}
+// X402: /**
+// X402:  * Build OpenClaw tool definitions for all registered partner services.
+// X402:  * @param proxyBaseUrl - Local proxy base URL (e.g., "http://127.0.0.1:8402")
+// X402:  */
+// X402: export function buildPartnerTools(proxyBaseUrl: string): PartnerToolDefinition[] {
+// X402:   return PARTNER_SERVICES.map((service) => buildTool(service, proxyBaseUrl));
+// X402: }
