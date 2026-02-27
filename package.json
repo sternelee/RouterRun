@@ -67,8 +67,7 @@
     "type": "git",
     "url": "git+https://github.com/BlockRunAI/ClawRouter.git"
   },
-  // X402: viem dependency removed for API Key mode (not needed without x402 payments)
-  // X402: To restore x402 payments, add: "viem": "^2.39.3"
+  "dependencies": {},
   "peerDependencies": {
     "openclaw": ">=2025.1.0"
   },
