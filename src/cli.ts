@@ -19,7 +19,7 @@ import { startProxy, getProxyPort } from "./proxy.js";
 import { loadApiKeys, getConfiguredProviders, hasOpenRouter, getAccessibleProviders } from "./api-keys.js";
 import { VERSION } from "./version.js";
 import { runDoctor } from "./doctor.js";
-import { PARTNER_SERVICES } from "./partners/index.js";
+// X402: Partners disabled in API Key mode - PARTNER_SERVICES is never[]
 
 function printHelp(): void {
   console.log(`
@@ -28,7 +28,6 @@ ClawRouter v${VERSION} - Smart LLM Router
 Usage:
   clawrouter [options]
   clawrouter doctor [opus] [question]
-  clawrouter partners [test]
 
 Options:
   --version, -v     Show version number
@@ -38,8 +37,6 @@ Options:
 Commands:
   doctor            AI-powered diagnostics (default: Sonnet ~$0.003)
   doctor opus       Use Opus for deeper analysis (~$0.01)
-  partners          List available partner APIs with pricing
-  partners test     Test partner API endpoints (expect 402 = alive)
 
 Examples:
   # Start standalone proxy
@@ -58,8 +55,15 @@ Examples:
   npx @blockrun/clawrouter doctor opus "深度分析我的配置问题"
 
 Environment Variables:
-  BLOCKRUN_WALLET_KEY     Private key for x402 payments (auto-generated if not set)
-  BLOCKRUN_PROXY_PORT     Default proxy port (default: 8402)
+  OPENROUTER_API_KEY    OpenRouter key (one key → all models!)
+  OPENAI_API_KEY        OpenAI API key (direct, cheaper)
+  ANTHROPIC_API_KEY     Anthropic API key (direct, cheaper)
+  GOOGLE_API_KEY        Google AI API key (direct, cheaper)
+  XAI_API_KEY           xAI/Grok API key (direct, cheaper)
+  DEEPSEEK_API_KEY      DeepSeek API key (direct, cheaper)
+  MOONSHOT_API_KEY      Moonshot/Kimi API key (direct, cheaper)
+  NVIDIA_API_KEY        NVIDIA API key (direct, cheaper)
+  CLAWROUTER_PORT       Default proxy port (default: 8402)
 
 For more info: https://github.com/BlockRunAI/ClawRouter
 `);
@@ -69,16 +73,12 @@ function parseArgs(args: string[]): {
   version: boolean;
   help: boolean;
   doctor: boolean;
-  partners: boolean;
-  partnersTest: boolean;
   port?: number;
 } {
   const result = {
     version: false,
     help: false,
     doctor: false,
-    partners: false,
-    partnersTest: false,
     port: undefined as number | undefined,
   };
 
@@ -90,13 +90,6 @@ function parseArgs(args: string[]): {
       result.help = true;
     } else if (arg === "doctor" || arg === "--doctor") {
       result.doctor = true;
-    } else if (arg === "partners") {
-      result.partners = true;
-      // Check for "test" subcommand
-      if (args[i + 1] === "test") {
-        result.partnersTest = true;
-        i++;
-      }
     } else if (arg === "--port" && args[i + 1]) {
       result.port = parseInt(args[i + 1], 10);
       i++; // Skip next arg
@@ -142,44 +135,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  if (args.partners) {
-    if (PARTNER_SERVICES.length === 0) {
-      console.log("No partner APIs available.");
-      process.exit(0);
-    }
-
-    console.log(`\nClawRouter Partner APIs (v${VERSION})\n`);
-
-    for (const svc of PARTNER_SERVICES) {
-      console.log(`  ${svc.name} (${svc.partner})`);
-      console.log(`    ${svc.description}`);
-      console.log(`    Tool:    blockrun_${svc.id}`);
-      console.log(`    Method:  ${svc.method} /v1${svc.proxyPath}`);
-      console.log(
-        `    Pricing: ${svc.pricing.perUnit} per ${svc.pricing.unit} (min ${svc.pricing.minimum}, max ${svc.pricing.maximum})`,
-      );
-      console.log();
-    }
-
-    if (args.partnersTest) {
-      console.log("Testing partner endpoints...\n");
-      const apiBase = "https://blockrun.ai/api";
-      for (const svc of PARTNER_SERVICES) {
-        const url = `${apiBase}/v1${svc.proxyPath}`;
-        try {
-          const response = await fetch(url, { method: "GET" });
-          const status = response.status;
-          const ok = status === 402 ? "alive (402 = payment required)" : `status ${status}`;
-          console.log(`  ${svc.id}: ${ok}`);
-        } catch (err) {
-          console.log(`  ${svc.id}: error - ${err instanceof Error ? err.message : String(err)}`);
-        }
-      }
-      console.log();
-    }
-
-    process.exit(0);
-  }
+  // X402: Partners command removed - not available in API Key mode
 
   // X402: Resolve wallet key
   // X402: const { key: walletKey, address, source } = await resolveOrGenerateWalletKey();

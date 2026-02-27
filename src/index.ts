@@ -62,7 +62,7 @@ import { join } from "node:path";
 import { VERSION } from "./version.js";
 // X402: import { privateKeyToAccount } from "viem/accounts";
 import { getStats, formatStatsAscii } from "./stats.js";
-import { buildPartnerTools, PARTNER_SERVICES } from "./partners/index.js";
+// X402: Partners disabled in API Key mode - PARTNER_SERVICES is never[]
 import { refreshOpenRouterModels } from "./openrouter-models.js";
 
 /**
@@ -756,57 +756,8 @@ const plugin: OpenClawPluginDefinition = {
       `ClawRouter provider registered (${getConfiguredProviders(apiKeys).length} providers: ${getConfiguredProviders(apiKeys).join(", ") || "none"})`,
     );
 
-    // Register partner API tools (Twitter/X lookup, etc.)
+    // X402: Register partner API tools (Twitter/X lookup, etc.) - disabled in API Key mode
     // X402: Note: Partner APIs require provider API keys to be configured
-    try {
-      const proxyBaseUrl = `http://127.0.0.1:${runtimePort}`;
-      const partnerTools = buildPartnerTools(proxyBaseUrl);
-      for (const tool of partnerTools) {
-        api.registerTool(tool);
-      }
-      if (partnerTools.length > 0) {
-        api.logger.info(
-          `Registered ${partnerTools.length} partner tool(s): ${partnerTools.map((t) => t.name).join(", ")}`,
-        );
-      }
-
-      // Register /partners command
-      api.registerCommand({
-        name: "partners",
-        description: "List available partner APIs and pricing",
-        acceptsArgs: false,
-        requireAuth: false,
-        handler: async () => {
-          if (PARTNER_SERVICES.length === 0) {
-            return { text: "No partner APIs available." };
-          }
-
-          const lines = [
-            "**Partner APIs** (requires provider API keys for access)",
-            "",
-          ];
-
-          for (const svc of PARTNER_SERVICES) {
-            lines.push(`**${svc.name}** (${svc.partner})`);
-            lines.push(`  ${svc.description}`);
-            lines.push(`  Tool: \`${`clawrouter_${svc.id}`}\``);
-            lines.push(
-              `  Pricing: ${svc.pricing.perUnit} per ${svc.pricing.unit} (min ${svc.pricing.minimum}, max ${svc.pricing.maximum})`,
-            );
-            lines.push(
-              `  **How to use:** Ask "Look up Twitter user @elonmusk" or "Get info on these X accounts: @naval, @balajis"`,
-            );
-            lines.push("");
-          }
-
-          return { text: lines.join("\n") };
-        },
-      });
-    } catch (err) {
-      api.logger.warn(
-        `Failed to register partner tools: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
 
     // X402: // Register /wallet command for wallet management
     // X402: createWalletCommand()
@@ -919,7 +870,8 @@ export default plugin;
 
 // Re-export for programmatic use
 export { startProxy, getProxyPort } from "./proxy.js";
-export type { ProxyOptions, ProxyHandle, LowBalanceInfo, InsufficientFundsInfo } from "./proxy.js";
+// X402: LowBalanceInfo, InsufficientFundsInfo removed - not available in API Key mode
+export type { ProxyOptions, ProxyHandle } from "./proxy.js";
 export { clawrouterProvider } from "./provider.js";
 export {
   OPENCLAW_MODELS,
@@ -966,8 +918,7 @@ export { SessionStore, getSessionId, DEFAULT_SESSION_CONFIG } from "./session.js
 export type { SessionEntry, SessionConfig } from "./session.js";
 export { ResponseCache } from "./response-cache.js";
 export type { CachedLLMResponse, ResponseCacheConfig } from "./response-cache.js";
-export { PARTNER_SERVICES, getPartnerService, buildPartnerTools } from "./partners/index.js";
-export type { PartnerServiceDefinition, PartnerToolDefinition } from "./partners/index.js";
+// X402: Partners exports removed - not available in API Key mode
 export {
   loadApiKeys,
   getConfiguredProviders,
