@@ -2220,9 +2220,10 @@ async function proxyRequest(
             const lastAssistantMsg = [...parsedMessages]
               .reverse()
               .find((m) => m.role === "assistant");
-            const toolCallNames = Array.isArray((lastAssistantMsg as any)?.tool_calls)
-              ? (lastAssistantMsg as any).tool_calls
-                  .map((tc: any) => tc.function?.name)
+            const assistantToolCalls = (lastAssistantMsg as { tool_calls?: Array<{ function?: { name?: string } }> })?.tool_calls
+            const toolCallNames = Array.isArray(assistantToolCalls)
+              ? assistantToolCalls
+                  .map((tc) => tc.function?.name)
                   .filter(Boolean)
               : undefined;
             const contentHash = hashRequestContent(prompt, toolCallNames);
