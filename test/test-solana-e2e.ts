@@ -56,9 +56,11 @@ async function run() {
   // Use env wallet if available, otherwise use the generated one
   const walletKey = process.env.BLOCKRUN_WALLET_KEY ?? evm.privateKey;
   const solanaKeyBytes = process.env.BLOCKRUN_WALLET_KEY ? undefined : solanaBytes;
+  const requestedChain = solanaKeyBytes ? "solana" : "base";
 
   const proxy = await startProxy({
     wallet: { key: walletKey, solanaPrivateKeyBytes: solanaKeyBytes },
+    paymentChain: requestedChain,
     port: 0,
     skipBalanceCheck: true,
     onReady: (port) => console.log(`  Proxy started on port ${port}`),
@@ -71,9 +73,18 @@ async function run() {
   console.log("\n--- Part 3: Health endpoint ---\n");
 
   const healthRes = await fetch(`http://127.0.0.1:${proxy.port}/health`);
-  const healthData = (await healthRes.json()) as { status: string; wallet: string; solana?: string };
+  const healthData = (await healthRes.json()) as {
+    status: string;
+    wallet: string;
+    solana?: string;
+    paymentChain?: "base" | "solana";
+  };
   assert(healthData.status === "ok", `Health status: ${healthData.status}`);
   assert(typeof healthData.wallet === "string", `Health reports EVM wallet: ${healthData.wallet}`);
+  assert(healthData.paymentChain === requestedChain, `Health reports payment chain: ${healthData.paymentChain}`);
+  if (requestedChain === "solana") {
+    assert(typeof healthData.solana === "string" && healthData.solana.length > 30, `Health reports Solana wallet: ${healthData.solana}`);
+  }
 
   // --- Part 4: Real API request (402 payment flow) ---
   console.log("\n--- Part 4: BlockRun API request (402 flow) ---\n");

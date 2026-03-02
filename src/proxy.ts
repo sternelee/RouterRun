@@ -1271,6 +1271,9 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
         wallet: account.address,
         paymentChain,
       };
+      if (solanaAddress) {
+        response.solana = solanaAddress;
+      }
 
       if (full) {
         try {
