@@ -15,6 +15,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { homedir } from "node:os";
+import { readTextFileSync } from "./fs-read.js";
 
 const WALLET_DIR = path.join(homedir(), ".openclaw", "blockrun");
 
@@ -75,7 +76,7 @@ export class FileSpendControlStorage implements SpendControlStorage {
   load(): { limits: SpendLimits; history: SpendRecord[] } | null {
     try {
       if (fs.existsSync(this.spendingFile)) {
-        const data = JSON.parse(fs.readFileSync(this.spendingFile, "utf-8"));
+        const data = JSON.parse(readTextFileSync(this.spendingFile));
         const rawLimits = data.limits ?? {};
         const rawHistory = data.history ?? [];
 

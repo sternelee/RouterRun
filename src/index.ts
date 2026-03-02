@@ -417,7 +417,8 @@ let activeProxyHandle: Awaited<ReturnType<typeof startProxy>> | null = null;
  */
 async function startProxyInBackground(api: OpenClawPluginApi): Promise<void> {
   // Resolve wallet key: saved file → env var → auto-generate
-  const wallet = await resolveOrGenerateWalletKey();
+  const paymentChain = process["env"].CLAWROUTER_PAYMENT_CHAIN === "solana" ? "solana" as const : "base" as const;
+  const wallet = await resolveOrGenerateWalletKey({ paymentChain });
 
   // Log wallet source
   if (wallet.source === "generated") {
@@ -912,7 +913,7 @@ export default plugin;
 
 // Re-export for programmatic use
 export { startProxy, getProxyPort } from "./proxy.js";
-export type { ProxyOptions, ProxyHandle, WalletConfig, LowBalanceInfo, InsufficientFundsInfo } from "./proxy.js";
+export type { ProxyOptions, ProxyHandle, WalletConfig, PaymentChain, LowBalanceInfo, InsufficientFundsInfo } from "./proxy.js";
 export type { WalletResolution } from "./auth.js";
 export { blockrunProvider } from "./provider.js";
 export {

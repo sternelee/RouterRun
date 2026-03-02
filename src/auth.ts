@@ -90,6 +90,8 @@ async function loadSavedWallet(): Promise<string | undefined> {
 
 /**
  * Load mnemonic from disk if it exists.
+ * Like loadSavedWallet(), refuses to silently ignore a corrupt mnemonic file
+ * to protect Solana funds derived from it.
  */
 async function loadMnemonic(): Promise<string | undefined> {
   try {
@@ -97,8 +99,29 @@ async function loadMnemonic(): Promise<string | undefined> {
     if (mnemonic && isValidMnemonic(mnemonic)) {
       return mnemonic;
     }
-  } catch {
-    // No mnemonic file or invalid - that's fine
+    // File exists but content is invalid — do NOT silently fall through.
+    // A Solana wallet was derived from this mnemonic; ignoring it would abandon those funds.
+    console.error(`[ClawRouter] ✗ CRITICAL: Mnemonic file exists but has invalid format!`);
+    console.error(`[ClawRouter]   File: ${MNEMONIC_FILE}`);
+    console.error(`[ClawRouter]   To fix: restore your mnemonic backup or delete the file to start fresh`);
+    throw new Error(
+      `Mnemonic file at ${MNEMONIC_FILE} is corrupted or has wrong format. ` +
+      `Refusing to ignore it to protect Solana funds derived from this mnemonic. ` +
+      `Restore your mnemonic backup or delete the file if no Solana funds are at risk.`,
+    );
+  } catch (err) {
+    // Re-throw corruption errors, only swallow ENOENT (file not found)
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      if (err instanceof Error && err.message.includes("Refusing to ignore")) {
+        throw err;
+      }
+      // Unexpected read error — also refuse to silently ignore
+      throw new Error(
+        `Cannot read mnemonic file at ${MNEMONIC_FILE}: ${err instanceof Error ? err.message : String(err)}. ` +
+        `Refusing to ignore it to protect Solana funds. ` +
+        `Fix file permissions or delete the file if no Solana funds are at risk.`,
+      );
+    }
   }
   return undefined;
 }
@@ -199,14 +222,33 @@ export type WalletResolution = {
   solanaPrivateKeyBytes?: Uint8Array;
 };
 
-export async function resolveOrGenerateWalletKey(): Promise<WalletResolution> {
+export async function resolveOrGenerateWalletKey(options?: {
+  paymentChain?: "base" | "solana";
+}): Promise<WalletResolution> {
+  const wantSolana = options?.paymentChain === "solana";
+
   // 1. Previously saved wallet
   const saved = await loadSavedWallet();
   if (saved) {
     const account = privateKeyToAccount(saved as `0x${string}`);
 
     // Check if mnemonic exists (Solana support enabled)
-    const mnemonic = await loadMnemonic();
+    let mnemonic = await loadMnemonic();
+
+    // Auto-setup Solana if user opted in but no mnemonic exists yet
+    if (!mnemonic && wantSolana) {
+      console.log(`[ClawRouter] Solana payment chain selected — setting up Solana wallet...`);
+      const solanaResult = await setupSolana();
+      mnemonic = solanaResult.mnemonic;
+      return {
+        key: saved,
+        address: account.address,
+        source: "saved",
+        mnemonic,
+        solanaPrivateKeyBytes: solanaResult.solanaPrivateKeyBytes,
+      };
+    }
+
     if (mnemonic) {
       const solanaKeyBytes = deriveSolanaKeyBytes(mnemonic);
       return {
@@ -225,6 +267,39 @@ export async function resolveOrGenerateWalletKey(): Promise<WalletResolution> {
   const envKey = process["env"].BLOCKRUN_WALLET_KEY;
   if (typeof envKey === "string" && envKey.startsWith("0x") && envKey.length === 66) {
     const account = privateKeyToAccount(envKey as `0x${string}`);
+
+    // Check if mnemonic exists (Solana support enabled) — same as "saved" path
+    let mnemonic = await loadMnemonic();
+
+    // Auto-setup Solana if user opted in but no mnemonic exists yet
+    // Note: env-var users need a saved wallet.key for setupSolana(), so we skip if not present
+    if (!mnemonic && wantSolana) {
+      console.log(`[ClawRouter] Solana payment chain selected — setting up Solana wallet...`);
+      // Save the env key to disk first so setupSolana() can find it
+      await mkdir(WALLET_DIR, { recursive: true });
+      await writeFile(WALLET_FILE, envKey + "\n", { mode: 0o600 });
+      const solanaResult = await setupSolana();
+      mnemonic = solanaResult.mnemonic;
+      return {
+        key: envKey,
+        address: account.address,
+        source: "env",
+        mnemonic,
+        solanaPrivateKeyBytes: solanaResult.solanaPrivateKeyBytes,
+      };
+    }
+
+    if (mnemonic) {
+      const solanaKeyBytes = deriveSolanaKeyBytes(mnemonic);
+      return {
+        key: envKey,
+        address: account.address,
+        source: "env",
+        mnemonic,
+        solanaPrivateKeyBytes: solanaKeyBytes,
+      };
+    }
+
     return { key: envKey, address: account.address, source: "env" };
   }
 

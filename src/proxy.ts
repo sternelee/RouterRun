@@ -25,7 +25,8 @@ import type { AddressInfo } from "node:net";
 import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
+import { x402Client } from "@x402/fetch";
+import { createPayFetchWithPreAuth } from "./payment-preauth.js";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { toClientEvmSigner } from "@x402/evm";
 import {
@@ -834,9 +835,13 @@ export type InsufficientFundsInfo = {
  */
 export type WalletConfig = string | { key: string; solanaPrivateKeyBytes?: Uint8Array };
 
+export type PaymentChain = "base" | "solana";
+
 export type ProxyOptions = {
   wallet: WalletConfig;
   apiBase?: string;
+  /** Payment chain: "base" (default) or "solana". Can also be set via CLAWROUTER_PAYMENT_CHAIN env var. */
+  paymentChain?: PaymentChain;
   /** Port to listen on (default: 8402) */
   port?: number;
   routingConfig?: Partial<RoutingConfig>;
@@ -1104,8 +1109,16 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
   const solanaPrivateKeyBytes =
     typeof options.wallet === "string" ? undefined : options.wallet.solanaPrivateKeyBytes;
 
-  // Use Solana API when Solana keys are available, EVM API otherwise
-  const apiBase = options.apiBase ?? (solanaPrivateKeyBytes ? BLOCKRUN_SOLANA_API : BLOCKRUN_API);
+  // Payment chain: default to Base (EVM), user can opt-in to Solana via env var or options.
+  // No dynamic switching — user manually selects chain.
+  // Solana wallet auto-setup is handled by resolveOrGenerateWalletKey() before startProxy is called.
+  const paymentChain = options.paymentChain ?? (process["env"].CLAWROUTER_PAYMENT_CHAIN === "solana" ? "solana" : "base");
+  const apiBase = options.apiBase ?? (paymentChain === "solana" && solanaPrivateKeyBytes ? BLOCKRUN_SOLANA_API : BLOCKRUN_API);
+  if (paymentChain === "solana" && !solanaPrivateKeyBytes) {
+    console.warn(`[ClawRouter] CLAWROUTER_PAYMENT_CHAIN=solana but no Solana keys provided. Using Base (EVM).`);
+  } else if (paymentChain === "solana") {
+    console.log(`[ClawRouter] Payment chain: Solana (${BLOCKRUN_SOLANA_API})`);
+  }
 
   // Determine port: options.port > env var > default
   const listenPort = options.port ?? getProxyPort();
@@ -1125,12 +1138,21 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
       );
     }
 
+    // Derive Solana address if keys are available (for wallet status display)
+    let reuseSolanaAddress: string | undefined;
+    if (solanaPrivateKeyBytes) {
+      const { createKeyPairSignerFromPrivateKeyBytes } = await import("@solana/kit");
+      const solanaSigner = await createKeyPairSignerFromPrivateKeyBytes(solanaPrivateKeyBytes);
+      reuseSolanaAddress = solanaSigner.address;
+    }
+
     options.onReady?.(listenPort);
 
     return {
       port: listenPort,
       baseUrl,
       walletAddress: existingWallet,
+      solanaAddress: reuseSolanaAddress,
       balanceMonitor,
       close: async () => {
         // No-op: we didn't start this proxy, so we shouldn't close it
@@ -1166,7 +1188,7 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
     console.log(`[ClawRouter] Payment signed on ${chain} (${network})`);
   });
 
-  const payFetch = wrapFetchWithPayment(fetch, x402);
+  const payFetch = createPayFetchWithPreAuth(fetch, x402);
 
   // Create balance monitor for pre-request checks
   const balanceMonitor = new BalanceMonitor(account.address);
