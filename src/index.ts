@@ -864,7 +864,7 @@ const plugin: OpenClawPluginDefinition = {
     if (!isGatewayMode()) {
       // Generate wallet on first install (even outside gateway mode)
       // This ensures users can see their wallet address immediately after install
-      resolveOrGenerateWalletKey()
+      resolveOrGenerateWalletKey({ paymentChain: process["env"].CLAWROUTER_PAYMENT_CHAIN === "solana" ? "solana" : "base" })
         .then(({ address, source }) => {
           if (source === "generated") {
             api.logger.warn(`════════════════════════════════════════════════`);

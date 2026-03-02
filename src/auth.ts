@@ -32,7 +32,6 @@ import type { ProviderAuthMethod, ProviderAuthContext, ProviderAuthResult } from
 import {
   generateWalletMnemonic,
   isValidMnemonic,
-  deriveEvmKey,
   deriveSolanaKeyBytes,
   deriveAllKeys,
 } from "./wallet.js";
