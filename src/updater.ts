@@ -6,7 +6,6 @@
 import { VERSION } from "./version.js";
 
 const NPM_REGISTRY = "https://registry.npmjs.org/@blockrun/clawrouter/latest";
-const UPDATE_URL = "https://blockrun.ai/ClawRouter-update";
 const CHECK_TIMEOUT_MS = 5_000; // Don't block startup for more than 5s
 
 /**
