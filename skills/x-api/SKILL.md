@@ -57,11 +57,11 @@ Also accepts a comma-separated string:
 
 ## Pricing
 
-| Batch size | Cost |
-|---|---|
-| 1–10 users | $0.01 (minimum) |
-| 11–100 users | $0.001 per user |
-| 100+ users | $0.10 (capped at first 100) |
+| Batch size   | Cost                        |
+| ------------ | --------------------------- |
+| 1–10 users   | $0.01 (minimum)             |
+| 11–100 users | $0.001 per user             |
+| 100+ users   | $0.10 (capped at first 100) |
 
 ## Example Interactions
 

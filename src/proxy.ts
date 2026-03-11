@@ -1203,9 +1203,7 @@ async function proxyPartnerRequest(
  * Supports ~/ home directory expansion.
  */
 function readImageFileAsDataUri(filePath: string): string {
-  const resolved = filePath.startsWith("~/")
-    ? join(homedir(), filePath.slice(2))
-    : filePath;
+  const resolved = filePath.startsWith("~/") ? join(homedir(), filePath.slice(2)) : filePath;
 
   if (!existsSync(resolved)) {
     throw new Error(`Image file not found: ${resolved}`);
@@ -1621,9 +1619,12 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
                 const imgResp = await fetch(img.url);
                 if (imgResp.ok) {
                   const contentType = imgResp.headers.get("content-type") ?? "image/png";
-                  const ext = contentType.includes("jpeg") || contentType.includes("jpg") ? "jpg"
-                    : contentType.includes("webp") ? "webp"
-                    : "png";
+                  const ext =
+                    contentType.includes("jpeg") || contentType.includes("jpg")
+                      ? "jpg"
+                      : contentType.includes("webp")
+                        ? "webp"
+                        : "png";
                   const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
                   const buf = Buffer.from(await imgResp.arrayBuffer());
                   await writeFile(join(IMAGE_DIR, filename), buf);
@@ -1631,7 +1632,9 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
                   console.log(`[ClawRouter] Image downloaded & saved → ${img.url}`);
                 }
               } catch (downloadErr) {
-                console.warn(`[ClawRouter] Failed to download image, using original URL: ${downloadErr instanceof Error ? downloadErr.message : String(downloadErr)}`);
+                console.warn(
+                  `[ClawRouter] Failed to download image, using original URL: ${downloadErr instanceof Error ? downloadErr.message : String(downloadErr)}`,
+                );
               }
             }
           }
@@ -2551,7 +2554,11 @@ async function proxyRequest(
                 created: timestamp,
                 model: "clawrouter/img2img",
                 choices: [
-                  { index: 0, message: { role: "assistant", content: text }, finish_reason: "stop" },
+                  {
+                    index: 0,
+                    message: { role: "assistant", content: text },
+                    finish_reason: "stop",
+                  },
                 ],
                 usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
               }),
@@ -2589,14 +2596,11 @@ async function proxyRequest(
             n: 1,
           });
 
-          const img2imgResponse = await payFetch(
-            `${apiBase}/v1/images/image2image`,
-            {
-              method: "POST",
-              headers: { "content-type": "application/json", "user-agent": USER_AGENT },
-              body: img2imgBody,
-            },
-          );
+          const img2imgResponse = await payFetch(`${apiBase}/v1/images/image2image`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "user-agent": USER_AGENT },
+            body: img2imgBody,
+          });
 
           const img2imgResult = (await img2imgResponse.json()) as {
             created?: number;

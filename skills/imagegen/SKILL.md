@@ -40,13 +40,13 @@ Display the image inline in your response:
 
 Pick the model based on what the user asks for (or default to `nano-banana`):
 
-| Model shorthand | Full ID | Price | Best for |
-|---|---|---|---|
-| `nano-banana` | `google/nano-banana` | $0.05 | Default — fast, cheap, good quality |
-| `banana-pro` | `google/nano-banana-pro` | $0.10 | High-res up to 4096×4096 |
-| `dall-e-3` | `openai/dall-e-3` | $0.04 | Photorealistic, complex scenes |
-| `gpt-image` | `openai/gpt-image-1` | $0.02 | Budget option |
-| `flux` | `black-forest/flux-1.1-pro` | $0.04 | Artistic styles, fewer restrictions |
+| Model shorthand | Full ID                     | Price | Best for                            |
+| --------------- | --------------------------- | ----- | ----------------------------------- |
+| `nano-banana`   | `google/nano-banana`        | $0.05 | Default — fast, cheap, good quality |
+| `banana-pro`    | `google/nano-banana-pro`    | $0.10 | High-res up to 4096×4096            |
+| `dall-e-3`      | `openai/dall-e-3`           | $0.04 | Photorealistic, complex scenes      |
+| `gpt-image`     | `openai/gpt-image-1`        | $0.02 | Budget option                       |
+| `flux`          | `black-forest/flux-1.1-pro` | $0.04 | Artistic styles, fewer restrictions |
 
 If the user mentions "high res" or "large", use `banana-pro`. If they want "photorealistic" or "dall-e", use `dall-e-3`. Otherwise default to `nano-banana`.
 
