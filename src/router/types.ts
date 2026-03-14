@@ -29,6 +29,27 @@ export type RoutingDecision = {
   baselineCost: number;
   savings: number; // 0-1 percentage
   agenticScore?: number; // 0-1 agentic task score (present when tier routing used)
+  /** Which tier configs were used (auto/eco/premium/agentic) — avoids re-derivation in proxy */
+  tierConfigs?: Record<Tier, TierConfig>;
+  /** Which routing profile was applied */
+  profile?: "auto" | "eco" | "premium" | "agentic";
+};
+
+export interface RouterStrategy {
+  readonly name: string;
+  route(
+    prompt: string,
+    systemPrompt: string | undefined,
+    maxOutputTokens: number,
+    options: RouterOptions,
+  ): RoutingDecision;
+}
+
+export type RouterOptions = {
+  config: RoutingConfig;
+  modelPricing: Map<string, import("./selector.js").ModelPricing>;
+  routingProfile?: "free" | "eco" | "auto" | "premium";
+  hasTools?: boolean;
 };
 
 export type TierConfig = {

@@ -3001,21 +3001,7 @@ async function proxyRequest(
             const shouldEscalate = sessionStore.recordRequestHash(effectiveSessionId!, contentHash);
 
             if (shouldEscalate) {
-              const activeTierConfigs = (() => {
-                if (
-                  routingDecision.reasoning?.includes("agentic") &&
-                  routerOpts.config.agenticTiers
-                ) {
-                  return routerOpts.config.agenticTiers;
-                }
-                if (routingProfile === "eco" && routerOpts.config.ecoTiers) {
-                  return routerOpts.config.ecoTiers;
-                }
-                if (routingProfile === "premium" && routerOpts.config.premiumTiers) {
-                  return routerOpts.config.premiumTiers;
-                }
-                return routerOpts.config.tiers;
-              })();
+              const activeTierConfigs = routingDecision.tierConfigs ?? routerOpts.config.tiers;
 
               const escalation = sessionStore.escalateSession(
                 effectiveSessionId!,
@@ -3300,20 +3286,8 @@ async function proxyRequest(
       const estimatedInputTokens = Math.ceil(body.length / 4);
       const estimatedTotalTokens = estimatedInputTokens + maxTokens;
 
-      // Get tier configs matching the profile that was used for routing
-      // Must stay in sync with what route() selected in router/index.ts
-      const tierConfigs = (() => {
-        if (routingDecision.reasoning?.includes("agentic") && routerOpts.config.agenticTiers) {
-          return routerOpts.config.agenticTiers;
-        }
-        if (routingProfile === "eco" && routerOpts.config.ecoTiers) {
-          return routerOpts.config.ecoTiers;
-        }
-        if (routingProfile === "premium" && routerOpts.config.premiumTiers) {
-          return routerOpts.config.premiumTiers;
-        }
-        return routerOpts.config.tiers;
-      })();
+      // Use tier configs from the routing decision (set by RouterStrategy)
+      const tierConfigs = routingDecision.tierConfigs ?? routerOpts.config.tiers;
 
       // Get full chain first, then filter by context
       const fullChain = getFallbackChain(routingDecision.tier, tierConfigs);
