@@ -247,7 +247,8 @@ try {
     'openai/gpt-5.4', 'openai/gpt-5.3', 'openai/gpt-5.3-codex', 'openai/gpt-4o', 'openai/o3',
     'google/gemini-3.1-pro', 'google/gemini-3-flash-preview',
     'deepseek/deepseek-chat', 'moonshot/kimi-k2.5',
-    'xai/grok-3', 'minimax/minimax-m2.5'
+    'xai/grok-3', 'minimax/minimax-m2.5',
+    'zai/glm-5', 'zai/glm-5-turbo'
   ];
 
   if (!config.agents) config.agents = {};
