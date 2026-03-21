@@ -697,24 +697,6 @@ const FALLBACK_STATUS_CODES = [
 ];
 
 /**
- * Check if an error response indicates a provider issue that should trigger fallback.
- */
-function isProviderError(status: number, body: string): boolean {
-  // Check status code first
-  if (!FALLBACK_STATUS_CODES.includes(status)) {
-    return false;
-  }
-
-  // For 5xx errors, always fallback
-  if (status >= 500) {
-    return true;
-  }
-
-  // For 4xx errors, check the body for known provider error patterns
-  return PROVIDER_ERROR_PATTERNS.some((pattern) => pattern.test(body));
-}
-
-/**
  * Valid message roles for OpenAI-compatible APIs.
  * Some clients send non-standard roles (e.g., "developer" instead of "system").
  */
