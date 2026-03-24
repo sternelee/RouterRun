@@ -4,6 +4,24 @@ All notable changes to ClawRouter.
 
 ---
 
+## v0.12.74 — Mar 24, 2026
+
+### Added
+
+- **11 free NVIDIA models** — GPT-OSS 20B/120B, Nemotron Ultra 253B, Nemotron Super 49B/120B, DeepSeek V3.2, Mistral Large 3, Qwen3 Coder 480B, Devstral 2 123B, GLM 4.7, Llama 4 Maverick. All free, no wallet balance needed.
+- **Smart free-tier routing** — Free profile now routes across all 11 models by tier (SIMPLE→GPT-OSS-20B, MEDIUM→DeepSeek-V3.2, COMPLEX→Nemotron-Ultra-253B, REASONING→Nemotron-Ultra-253B) with fallback chains, instead of always using GPT-OSS-120B.
+- **New model aliases** — `nemotron`, `devstral`, `qwen-coder`, `maverick`, `deepseek-free`, `mistral-free`, `glm-free`, `llama-free`, and more (16 total).
+- **Free-first eco routing** — Eco profile MEDIUM primary now nvidia/deepseek-v3.2 (free), COMPLEX primary now nvidia/nemotron-ultra-253b (free). Most eco requests cost nothing.
+- **Tier-aware wallet fallback** — Empty wallet COMPLEX tasks now route to nemotron-ultra-253b instead of gpt-oss-120b.
+
+### Fixed
+
+- **Skills not found by OpenClaw agents** — Auto-copies bundled skills (imagegen, x-api, clawrouter) to `~/.openclaw/workspace/skills/` on plugin registration. Fixes `ENOENT` errors when agents invoke `/imagegen`.
+- **Internal `release` skill excluded** — No longer installed to user workspaces.
+- **Sync package-lock.json**
+
+---
+
 ## v0.12.73 — Mar 24, 2026
 
 ### Fixed

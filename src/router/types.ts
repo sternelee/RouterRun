@@ -32,7 +32,7 @@ export type RoutingDecision = {
   /** Which tier configs were used (auto/eco/premium/agentic) — avoids re-derivation in proxy */
   tierConfigs?: Record<Tier, TierConfig>;
   /** Which routing profile was applied */
-  profile?: "auto" | "eco" | "premium" | "agentic";
+  profile?: "auto" | "eco" | "premium" | "agentic" | "free";
 };
 
 export interface RouterStrategy {
@@ -115,5 +115,7 @@ export type RoutingConfig = {
   ecoTiers?: Record<Tier, TierConfig>;
   /** Tier configs for premium profile - best quality (blockrun/premium) */
   premiumTiers?: Record<Tier, TierConfig>;
+  /** Tier configs for free profile - NVIDIA free models only (blockrun/free) */
+  freeTiers?: Record<Tier, TierConfig>;
   overrides: OverridesConfig;
 };

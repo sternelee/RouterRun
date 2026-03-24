@@ -80,9 +80,27 @@ export const MODEL_ALIASES: Record<string, string> = {
   "xai/grok-code-fast-1": "deepseek/deepseek-chat", // delisted 2026-03-12
   "xai/grok-3-fast": "xai/grok-4-fast-reasoning", // delisted (too expensive)
 
-  // NVIDIA
+  // NVIDIA — existing alias kept for backward compat
   nvidia: "nvidia/gpt-oss-120b",
   "gpt-120b": "nvidia/gpt-oss-120b",
+  "gpt-20b": "nvidia/gpt-oss-20b",
+  // Free model aliases — "-free" suffix for models with paid twins
+  "deepseek-free": "nvidia/deepseek-v3.2",
+  "mistral-free": "nvidia/mistral-large-3-675b",
+  "glm-free": "nvidia/glm-4.7",
+  "llama-free": "nvidia/llama-4-maverick",
+  // Bare-name aliases for unique free models
+  nemotron: "nvidia/nemotron-ultra-253b",
+  "nemotron-ultra": "nvidia/nemotron-ultra-253b",
+  "nemotron-253b": "nvidia/nemotron-ultra-253b",
+  "nemotron-super": "nvidia/nemotron-super-49b",
+  "nemotron-49b": "nvidia/nemotron-super-49b",
+  "nemotron-120b": "nvidia/nemotron-3-super-120b",
+  devstral: "nvidia/devstral-2-123b",
+  "devstral-2": "nvidia/devstral-2-123b",
+  "qwen-coder": "nvidia/qwen3-coder-480b",
+  "qwen-coder-free": "nvidia/qwen3-coder-480b",
+  maverick: "nvidia/llama-4-maverick",
 
   // MiniMax
   minimax: "minimax/minimax-m2.7",
@@ -182,11 +200,11 @@ export const BLOCKRUN_MODELS: BlockRunModel[] = [
   },
   {
     id: "free",
-    name: "Free (NVIDIA GPT-OSS-120B only)",
+    name: "Free (Smart Router - 11 NVIDIA Models)",
     inputPrice: 0,
     outputPrice: 0,
-    contextWindow: 128_000,
-    maxOutput: 4_096,
+    contextWindow: 131_072,
+    maxOutput: 16_384,
   },
   {
     id: "eco",
@@ -704,18 +722,117 @@ export const BLOCKRUN_MODELS: BlockRunModel[] = [
     toolCalling: true,
   },
 
-  // NVIDIA - Free/cheap models
+  // NVIDIA - Free models (hosted by NVIDIA, billingMode: "free" on server)
+  // toolCalling intentionally omitted on all free models: structured function
+  // calling support unverified. Excluded from tool-heavy routing paths.
   {
     id: "nvidia/gpt-oss-120b",
-    name: "NVIDIA GPT-OSS 120B",
+    name: "[Free] GPT-OSS 120B",
     version: "120b",
     inputPrice: 0,
     outputPrice: 0,
     contextWindow: 128000,
     maxOutput: 16384,
-    // toolCalling intentionally omitted: free model, structured function
-    // calling support unverified. Excluded from tool-heavy routing paths.
   },
+  {
+    id: "nvidia/gpt-oss-20b",
+    name: "[Free] GPT-OSS 20B",
+    version: "20b",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 128000,
+    maxOutput: 16384,
+  },
+  {
+    id: "nvidia/nemotron-ultra-253b",
+    name: "[Free] Nemotron Ultra 253B",
+    version: "253b",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
+    reasoning: true,
+  },
+  {
+    id: "nvidia/nemotron-3-super-120b",
+    name: "[Free] Nemotron 3 Super 120B",
+    version: "3-super-120b",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
+    reasoning: true,
+  },
+  {
+    id: "nvidia/nemotron-super-49b",
+    name: "[Free] Nemotron Super 49B",
+    version: "super-49b",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
+    reasoning: true,
+  },
+  {
+    id: "nvidia/deepseek-v3.2",
+    name: "[Free] DeepSeek V3.2",
+    version: "v3.2",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
+    reasoning: true,
+  },
+  {
+    id: "nvidia/mistral-large-3-675b",
+    name: "[Free] Mistral Large 675B",
+    version: "3-675b",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
+    reasoning: true,
+  },
+  {
+    id: "nvidia/qwen3-coder-480b",
+    name: "[Free] Qwen3 Coder 480B",
+    version: "480b",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
+  },
+  {
+    id: "nvidia/devstral-2-123b",
+    name: "[Free] Devstral 2 123B",
+    version: "2-123b",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
+  },
+  {
+    id: "nvidia/glm-4.7",
+    name: "[Free] GLM-4.7",
+    version: "4.7",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
+    reasoning: true,
+  },
+  {
+    id: "nvidia/llama-4-maverick",
+    name: "[Free] Llama 4 Maverick",
+    version: "4-maverick",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
+    reasoning: true,
+  },
+
+  // NVIDIA - Paid models
   {
     id: "nvidia/kimi-k2.5",
     name: "NVIDIA Kimi K2.5",

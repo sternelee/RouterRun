@@ -107,12 +107,37 @@ const ROUTING_PROFILES = new Set([
   "blockrun/premium",
   "premium",
 ]);
-const FREE_MODEL = "nvidia/gpt-oss-120b"; // Free model for empty wallet fallback
+const FREE_MODEL = "nvidia/gpt-oss-120b"; // Last-resort single free model fallback
+const FREE_MODELS = new Set([
+  "nvidia/gpt-oss-120b",
+  "nvidia/gpt-oss-20b",
+  "nvidia/nemotron-ultra-253b",
+  "nvidia/nemotron-3-super-120b",
+  "nvidia/nemotron-super-49b",
+  "nvidia/deepseek-v3.2",
+  "nvidia/mistral-large-3-675b",
+  "nvidia/qwen3-coder-480b",
+  "nvidia/devstral-2-123b",
+  "nvidia/glm-4.7",
+  "nvidia/llama-4-maverick",
+]);
 const FREE_TIER_CONFIGS: Record<Tier, { primary: string; fallback: string[] }> = {
-  SIMPLE: { primary: FREE_MODEL, fallback: [] },
-  MEDIUM: { primary: FREE_MODEL, fallback: [] },
-  COMPLEX: { primary: FREE_MODEL, fallback: [] },
-  REASONING: { primary: FREE_MODEL, fallback: [] },
+  SIMPLE: {
+    primary: "nvidia/gpt-oss-20b",
+    fallback: ["nvidia/gpt-oss-120b", "nvidia/nemotron-super-49b"],
+  },
+  MEDIUM: {
+    primary: "nvidia/deepseek-v3.2",
+    fallback: ["nvidia/gpt-oss-120b", "nvidia/nemotron-super-49b"],
+  },
+  COMPLEX: {
+    primary: "nvidia/nemotron-ultra-253b",
+    fallback: ["nvidia/mistral-large-3-675b", "nvidia/deepseek-v3.2", "nvidia/gpt-oss-120b"],
+  },
+  REASONING: {
+    primary: "nvidia/nemotron-ultra-253b",
+    fallback: ["nvidia/nemotron-3-super-120b", "nvidia/deepseek-v3.2"],
+  },
 };
 let freeRequestCount = 0;
 const MAX_MESSAGES = 200; // BlockRun API limit - truncate older messages if exceeded
@@ -3106,34 +3131,7 @@ async function proxyRequest(
 
       // Handle routing profiles (free/eco/auto/premium)
       if (isRoutingProfile) {
-        // Free profile - direct shortcut to nvidia/gpt-oss-120b (no tier routing)
-        if (routingProfile === "free") {
-          const freeModel = "nvidia/gpt-oss-120b";
-          console.log(`[ClawRouter] Free profile - using ${freeModel} directly`);
-          parsed.model = freeModel;
-          modelId = freeModel;
-          bodyModified = true;
-
-          // Nudge every 5th free request toward paid models
-          freeRequestCount++;
-          if (freeRequestCount % 5 === 0) {
-            balanceFallbackNotice = `> **💡 Tip:** Not satisfied with free model quality? Fund your wallet to unlock deepseek-chat, gemini-flash, and 30+ premium models — starting at $0.001/request.\n\n`;
-          }
-
-          // Set routing decision so end-of-request logging uses correct tier
-          // (no early logUsage here — the request will be logged after upstream call)
-          routingDecision = {
-            model: freeModel,
-            tier: "SIMPLE" as Tier,
-            confidence: 1,
-            method: "rules",
-            reasoning: "free profile",
-            costEstimate: 0,
-            baselineCost: 0,
-            savings: 1,
-            tierConfigs: FREE_TIER_CONFIGS,
-          };
-        } else {
+        {
           // eco/auto/premium - use tier routing
           // Check for session persistence - use pinned model if available
           // Fall back to deriving a session ID from message content when OpenClaw
@@ -3307,6 +3305,14 @@ async function proxyRequest(
           }
 
           options.onRouted?.(routingDecision);
+
+          // Nudge every 5th free-profile request toward paid models
+          if (routingProfile === "free") {
+            freeRequestCount++;
+            if (freeRequestCount % 5 === 0) {
+              balanceFallbackNotice = `> **💡 Tip:** Free tier gives you 11 NVIDIA models. Want Claude, GPT-5, or Gemini? Fund your wallet — starting at $0.001/request.\n\n`;
+            }
+          }
         }
       }
 
@@ -3432,8 +3438,8 @@ async function proxyRequest(
   // Estimate cost and check if wallet has sufficient balance
   // Skip if skipBalanceCheck is set (for testing) or if using free model
   let estimatedCostMicros: bigint | undefined;
-  // Use `let` so the balance-fallback path can update this when modelId is switched to FREE_MODEL.
-  let isFreeModel = modelId === FREE_MODEL;
+  // Use `let` so the balance-fallback path can update this when modelId is switched to a free model.
+  let isFreeModel = FREE_MODELS.has(modelId ?? "");
 
   if (modelId && !options.skipBalanceCheck && !isFreeModel) {
     const estimated = estimateAmount(modelId, body.length, maxTokens);
@@ -3449,17 +3455,19 @@ async function proxyRequest(
       const sufficiency = await balanceMonitor.checkSufficient(bufferedCostMicros);
 
       if (sufficiency.info.isEmpty || !sufficiency.sufficient) {
-        // Wallet is empty or insufficient — ALWAYS fallback to free model
-        // This ensures new users with empty wallets can still use ClawRouter
+        // Wallet is empty or insufficient — fallback to best free model for this tier
         const originalModel = modelId;
+        const fallbackTier = routingDecision?.tier ?? "SIMPLE";
+        const freeTierConfig = FREE_TIER_CONFIGS[fallbackTier];
+        const freeModel = freeTierConfig.primary;
         console.log(
-          `[ClawRouter] Wallet ${sufficiency.info.isEmpty ? "empty" : "insufficient"} (${sufficiency.info.balanceUSD}), falling back to free model: ${FREE_MODEL} (requested: ${originalModel})`,
+          `[ClawRouter] Wallet ${sufficiency.info.isEmpty ? "empty" : "insufficient"} (${sufficiency.info.balanceUSD}), falling back to free model: ${freeModel} (tier: ${fallbackTier}, requested: ${originalModel})`,
         );
-        modelId = FREE_MODEL;
+        modelId = freeModel;
         isFreeModel = true; // keep in sync — budget logic gates on !isFreeModel
         // Update the body with new model
         const parsed = JSON.parse(body.toString()) as Record<string, unknown>;
-        parsed.model = FREE_MODEL;
+        parsed.model = freeModel;
         body = Buffer.from(JSON.stringify(parsed));
 
         // Set notice to prepend to response so user knows about the fallback
@@ -3470,7 +3478,7 @@ async function proxyRequest(
         // Also count balance-fallback as a free request for upgrade nudge
         freeRequestCount++;
         if (freeRequestCount % 5 === 0) {
-          balanceFallbackNotice = `> **💡 Tip:** Not satisfied with free model quality? Fund your wallet to unlock deepseek-chat, gemini-flash, and 30+ premium models — starting at $0.001/request.\n\n`;
+          balanceFallbackNotice = `> **💡 Tip:** Free tier gives you 11 NVIDIA models. Want Claude, GPT-5, or Gemini? Fund your wallet — starting at $0.001/request.\n\n`;
         }
 
         // Notify about the fallback
@@ -3554,9 +3562,9 @@ async function proxyRequest(
 
     if (isComplexOrAgentic) {
       // Case A: tool/complex/agentic routing profile — check global model table
-      // Intentionally exclude FREE_MODEL: free model cannot handle complex/agentic tasks.
+      // Intentionally exclude free models: they cannot handle complex/agentic tasks.
       const canAffordAnyNonFreeModel = BLOCKRUN_MODELS.some((m) => {
-        if (m.id === FREE_MODEL) return false;
+        if (FREE_MODELS.has(m.id)) return false;
         const est = estimateAmount(m.id, body.length, maxTokens);
         return est !== undefined && Number(est) / 1_000_000 <= remainingUsd;
       });
@@ -3581,7 +3589,7 @@ async function proxyRequest(
         deduplicator.removeInflight(dedupKey);
         return;
       }
-    } else if (!routingDecision && modelId && modelId !== FREE_MODEL) {
+    } else if (!routingDecision && modelId && !FREE_MODELS.has(modelId)) {
       // Case B: explicit model request (user chose a specific model, not a routing profile).
       // Silently substituting their choice with free model is deceptive — block instead.
       const est = estimateAmount(modelId, body.length, maxTokens);
@@ -3774,7 +3782,7 @@ async function proxyRequest(
     // Skip free fallback when tools are present — nvidia/gpt-oss-120b lacks
     // tool calling support and would produce broken responses for agentic tasks.
     if (!hasTools && !modelsToTry.includes(FREE_MODEL) && !excludeList.has(FREE_MODEL)) {
-      modelsToTry.push(FREE_MODEL);
+      modelsToTry.push(FREE_MODEL); // last-resort free fallback
     }
 
     // --- Budget-aware routing (graceful mode) ---
@@ -3792,7 +3800,7 @@ async function proxyRequest(
 
       const beforeFilter = [...modelsToTry];
       modelsToTry = modelsToTry.filter((m) => {
-        if (m === FREE_MODEL) return true; // free model always fits
+        if (FREE_MODELS.has(m)) return true; // free models always fit (no cost)
         const est = estimateAmount(m, body.length, maxTokens);
         if (!est) return true; // no pricing data → keep (permissive)
         return Number(est) / 1_000_000 <= remainingUsd;
@@ -3802,7 +3810,7 @@ async function proxyRequest(
 
       // Second-pass block: the pre-check caught obvious cases early (before streaming headers).
       // Here we recheck against the actual filtered modelsToTry chain. If the ONLY remaining
-      // model is FREE_MODEL, we must block rather than silently degrade for:
+      // models are free, we must block rather than silently degrade for:
       //   (A) complex/agentic routing profile tasks (tools / COMPLEX / REASONING tier)
       //   (B) explicit model requests (user chose a specific model; free substitution is deceptive)
       // The pre-check already handles case (B) for non-streaming; this is a safety net for
@@ -3813,7 +3821,7 @@ async function proxyRequest(
         routingDecision?.tier === "REASONING" ||
         routingDecision === undefined; // explicit model: no routing profile → user chose the model
       const filteredToFreeOnly =
-        modelsToTry.length > 0 && modelsToTry.every((m) => m === FREE_MODEL);
+        modelsToTry.length > 0 && modelsToTry.every((m) => FREE_MODELS.has(m));
 
       if (isComplexOrAgenticFilter && filteredToFreeOnly) {
         const budgetSummary = `$${Math.max(0, remainingUsd).toFixed(4)} remaining (limit: $${options.maxCostPerRunUsd})`;
@@ -3855,11 +3863,11 @@ async function proxyRequest(
 
         // A: Set visible warning notice — prepended to response so user sees the downgrade
         const fromModel = excluded[0];
-        const usingFree = modelsToTry.length === 1 && modelsToTry[0] === FREE_MODEL;
+        const usingFree = modelsToTry.length === 1 && FREE_MODELS.has(modelsToTry[0]);
         if (usingFree) {
           budgetDowngradeNotice = `> **⚠️ Budget cap reached** ($${runCostUsd.toFixed(4)}/$${options.maxCostPerRunUsd}) — downgraded to free model. Quality may be reduced. Increase \`maxCostPerRun\` to continue with ${fromModel}.\n\n`;
         } else {
-          const toModel = modelsToTry[0] ?? FREE_MODEL;
+          const toModel = modelsToTry[0] ?? FREE_MODEL; // last resort
           budgetDowngradeNotice = `> **⚠️ Budget low** ($${remainingUsd > 0 ? remainingUsd.toFixed(4) : "0.0000"} remaining) — using ${toModel} instead of ${fromModel}.\n\n`;
         }
         // B: Header flag for orchestration layers (e.g. OpenClaw can pause/warn the user)
@@ -3922,7 +3930,7 @@ async function proxyRequest(
         actualModelUsed = tryModel;
         console.log(`[ClawRouter] Success with model: ${tryModel}`);
         // Accumulate estimated cost to session for maxCostPerRun tracking
-        if (options.maxCostPerRunUsd && effectiveSessionId && tryModel !== FREE_MODEL) {
+        if (options.maxCostPerRunUsd && effectiveSessionId && !FREE_MODELS.has(tryModel)) {
           const costEst = estimateAmount(tryModel, body.length, maxTokens);
           if (costEst) {
             sessionStore.addSessionCost(effectiveSessionId, BigInt(costEst));
@@ -3952,7 +3960,7 @@ async function proxyRequest(
         /payment.*verification.*failed|payment.*settlement.*failed|insufficient.*funds|transaction_simulation_failed/i.test(
           result.errorBody || "",
         );
-      if (isPaymentErr && tryModel !== FREE_MODEL && !isLastAttempt) {
+      if (isPaymentErr && !FREE_MODELS.has(tryModel) && !isLastAttempt) {
         failedAttempts.push({
           ...failedAttempts[failedAttempts.length - 1],
           reason: "payment_error",

@@ -32906,9 +32906,27 @@ var MODEL_ALIASES = {
   // delisted 2026-03-12
   "xai/grok-3-fast": "xai/grok-4-fast-reasoning",
   // delisted (too expensive)
-  // NVIDIA
+  // NVIDIA — existing alias kept for backward compat
   nvidia: "nvidia/gpt-oss-120b",
   "gpt-120b": "nvidia/gpt-oss-120b",
+  "gpt-20b": "nvidia/gpt-oss-20b",
+  // Free model aliases — "-free" suffix for models with paid twins
+  "deepseek-free": "nvidia/deepseek-v3.2",
+  "mistral-free": "nvidia/mistral-large-3-675b",
+  "glm-free": "nvidia/glm-4.7",
+  "llama-free": "nvidia/llama-4-maverick",
+  // Bare-name aliases for unique free models
+  nemotron: "nvidia/nemotron-ultra-253b",
+  "nemotron-ultra": "nvidia/nemotron-ultra-253b",
+  "nemotron-253b": "nvidia/nemotron-ultra-253b",
+  "nemotron-super": "nvidia/nemotron-super-49b",
+  "nemotron-49b": "nvidia/nemotron-super-49b",
+  "nemotron-120b": "nvidia/nemotron-3-super-120b",
+  devstral: "nvidia/devstral-2-123b",
+  "devstral-2": "nvidia/devstral-2-123b",
+  "qwen-coder": "nvidia/qwen3-coder-480b",
+  "qwen-coder-free": "nvidia/qwen3-coder-480b",
+  maverick: "nvidia/llama-4-maverick",
   // MiniMax
   minimax: "minimax/minimax-m2.7",
   "minimax-m2.7": "minimax/minimax-m2.7",
@@ -32955,11 +32973,11 @@ var BLOCKRUN_MODELS = [
   },
   {
     id: "free",
-    name: "Free (NVIDIA GPT-OSS-120B only)",
+    name: "Free (Smart Router - 11 NVIDIA Models)",
     inputPrice: 0,
     outputPrice: 0,
-    contextWindow: 128e3,
-    maxOutput: 4096
+    contextWindow: 131072,
+    maxOutput: 16384
   },
   {
     id: "eco",
@@ -33464,18 +33482,116 @@ var BLOCKRUN_MODELS = [
     agentic: true,
     toolCalling: true
   },
-  // NVIDIA - Free/cheap models
+  // NVIDIA - Free models (hosted by NVIDIA, billingMode: "free" on server)
+  // toolCalling intentionally omitted on all free models: structured function
+  // calling support unverified. Excluded from tool-heavy routing paths.
   {
     id: "nvidia/gpt-oss-120b",
-    name: "NVIDIA GPT-OSS 120B",
+    name: "[Free] GPT-OSS 120B",
     version: "120b",
     inputPrice: 0,
     outputPrice: 0,
     contextWindow: 128e3,
     maxOutput: 16384
-    // toolCalling intentionally omitted: free model, structured function
-    // calling support unverified. Excluded from tool-heavy routing paths.
   },
+  {
+    id: "nvidia/gpt-oss-20b",
+    name: "[Free] GPT-OSS 20B",
+    version: "20b",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 128e3,
+    maxOutput: 16384
+  },
+  {
+    id: "nvidia/nemotron-ultra-253b",
+    name: "[Free] Nemotron Ultra 253B",
+    version: "253b",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
+    reasoning: true
+  },
+  {
+    id: "nvidia/nemotron-3-super-120b",
+    name: "[Free] Nemotron 3 Super 120B",
+    version: "3-super-120b",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
+    reasoning: true
+  },
+  {
+    id: "nvidia/nemotron-super-49b",
+    name: "[Free] Nemotron Super 49B",
+    version: "super-49b",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
+    reasoning: true
+  },
+  {
+    id: "nvidia/deepseek-v3.2",
+    name: "[Free] DeepSeek V3.2",
+    version: "v3.2",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
+    reasoning: true
+  },
+  {
+    id: "nvidia/mistral-large-3-675b",
+    name: "[Free] Mistral Large 675B",
+    version: "3-675b",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
+    reasoning: true
+  },
+  {
+    id: "nvidia/qwen3-coder-480b",
+    name: "[Free] Qwen3 Coder 480B",
+    version: "480b",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384
+  },
+  {
+    id: "nvidia/devstral-2-123b",
+    name: "[Free] Devstral 2 123B",
+    version: "2-123b",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384
+  },
+  {
+    id: "nvidia/glm-4.7",
+    name: "[Free] GLM-4.7",
+    version: "4.7",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
+    reasoning: true
+  },
+  {
+    id: "nvidia/llama-4-maverick",
+    name: "[Free] Llama 4 Maverick",
+    version: "4-maverick",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
+    reasoning: true
+  },
+  // NVIDIA - Paid models
   {
     id: "nvidia/kimi-k2.5",
     name: "NVIDIA Kimi K2.5",
@@ -43601,7 +43717,11 @@ var RulesStrategy = class {
     let tierConfigs;
     let profileSuffix;
     let profile;
-    if (routingProfile === "eco" && config.ecoTiers) {
+    if (routingProfile === "free" && config.freeTiers) {
+      tierConfigs = config.freeTiers;
+      profileSuffix = " | free";
+      profile = "free";
+    } else if (routingProfile === "eco" && config.ecoTiers) {
       tierConfigs = config.ecoTiers;
       profileSuffix = " | eco";
       profile = "eco";
@@ -44790,39 +44910,50 @@ var DEFAULT_ROUTING_CONFIG = {
       ]
     }
   },
-  // Eco tier configs - absolute cheapest (blockrun/eco)
+  // Eco tier configs - absolute cheapest, free-first (blockrun/eco)
   ecoTiers: {
     SIMPLE: {
       primary: "nvidia/gpt-oss-120b",
-      // 1,252ms, FREE! $0.00/$0.00
+      // FREE! $0.00/$0.00
       fallback: [
+        "nvidia/gpt-oss-20b",
+        // FREE — smaller, faster
         "google/gemini-3.1-flash-lite",
         // $0.25/$1.50 — newest flash-lite
         "openai/gpt-5.4-nano",
         // $0.20/$1.25 — fast nano
         "google/gemini-2.5-flash-lite",
-        // 1,353ms, $0.10/$0.40
+        // $0.10/$0.40
         "xai/grok-4-fast-non-reasoning"
-        // 1,143ms, $0.20/$0.50
+        // $0.20/$0.50
       ]
     },
     MEDIUM: {
-      primary: "google/gemini-3.1-flash-lite",
-      // $0.25/$1.50 — 1M context, newest flash-lite
+      primary: "nvidia/deepseek-v3.2",
+      // FREE — DeepSeek V3.2 quality at zero cost
       fallback: [
+        "nvidia/gpt-oss-120b",
+        // FREE fallback
+        "google/gemini-3.1-flash-lite",
+        // $0.25/$1.50
         "openai/gpt-5.4-nano",
-        // $0.20/$1.25, 1M context
+        // $0.20/$1.25
         "google/gemini-2.5-flash-lite",
-        // 1,353ms, $0.10/$0.40
+        // $0.10/$0.40
         "xai/grok-4-fast-non-reasoning",
-        "google/gemini-2.5-flash",
-        "nvidia/gpt-oss-120b"
+        "google/gemini-2.5-flash"
       ]
     },
     COMPLEX: {
-      primary: "google/gemini-3.1-flash-lite",
-      // $0.25/$1.50 — 1M context handles complexity
+      primary: "nvidia/nemotron-ultra-253b",
+      // FREE — 253B reasoning model
       fallback: [
+        "nvidia/mistral-large-3-675b",
+        // FREE — 675B brute-force
+        "nvidia/deepseek-v3.2",
+        // FREE
+        "google/gemini-3.1-flash-lite",
+        // $0.25/$1.50
         "google/gemini-2.5-flash-lite",
         "xai/grok-4-0709",
         "google/gemini-2.5-flash",
@@ -44831,8 +44962,13 @@ var DEFAULT_ROUTING_CONFIG = {
     },
     REASONING: {
       primary: "xai/grok-4-1-fast-reasoning",
-      // 1,454ms, $0.20/$0.50
-      fallback: ["xai/grok-4-fast-reasoning", "deepseek/deepseek-reasoner"]
+      // $0.20/$0.50
+      fallback: [
+        "xai/grok-4-fast-reasoning",
+        "nvidia/nemotron-ultra-253b",
+        // FREE reasoning fallback
+        "deepseek/deepseek-reasoner"
+      ]
     }
   },
   // Premium tier configs - best quality (blockrun/premium)
@@ -44943,6 +45079,73 @@ var DEFAULT_ROUTING_CONFIG = {
         // 1,454ms
         "deepseek/deepseek-reasoner"
         // 1,454ms
+      ]
+    }
+  },
+  // Free tier configs - NVIDIA free models, smart-routed by task type (blockrun/free)
+  freeTiers: {
+    SIMPLE: {
+      primary: "nvidia/gpt-oss-20b",
+      // Fastest: small 20B for simple tasks
+      fallback: [
+        "nvidia/gpt-oss-120b",
+        // Solid general-purpose
+        "nvidia/nemotron-super-49b",
+        // Thinking mode
+        "nvidia/llama-4-maverick",
+        // MoE broad coverage
+        "nvidia/glm-4.7"
+        // Thinking mode
+      ]
+    },
+    MEDIUM: {
+      primary: "nvidia/deepseek-v3.2",
+      // DeepSeek V3.2 quality, zero cost
+      fallback: [
+        "nvidia/gpt-oss-120b",
+        // Strong 120B general-purpose
+        "nvidia/nemotron-super-49b",
+        // Thinking mode
+        "nvidia/mistral-large-3-675b",
+        // Largest Mistral
+        "nvidia/llama-4-maverick",
+        // MoE breadth
+        "nvidia/glm-4.7"
+        // Thinking mode
+      ]
+    },
+    COMPLEX: {
+      primary: "nvidia/nemotron-ultra-253b",
+      // Strongest free: 253B reasoning
+      fallback: [
+        "nvidia/mistral-large-3-675b",
+        // 675B massive params
+        "nvidia/deepseek-v3.2",
+        // V3.2 quality
+        "nvidia/nemotron-3-super-120b",
+        // Thinking mode MoE
+        "nvidia/qwen3-coder-480b",
+        // 480B MoE for code-heavy tasks
+        "nvidia/devstral-2-123b",
+        // Coding-focused
+        "nvidia/gpt-oss-120b"
+        // Last resort
+      ]
+    },
+    REASONING: {
+      primary: "nvidia/nemotron-ultra-253b",
+      // Best free reasoning: 253B
+      fallback: [
+        "nvidia/nemotron-3-super-120b",
+        // Thinking mode MoE
+        "nvidia/nemotron-super-49b",
+        // Thinking mode
+        "nvidia/deepseek-v3.2",
+        // DeepSeek reasoning
+        "nvidia/mistral-large-3-675b",
+        // Brute-force params
+        "nvidia/glm-4.7"
+        // GLM thinking mode
       ]
     }
   },
@@ -47176,11 +47379,36 @@ var ROUTING_PROFILES = /* @__PURE__ */ new Set([
   "premium"
 ]);
 var FREE_MODEL = "nvidia/gpt-oss-120b";
+var FREE_MODELS = /* @__PURE__ */ new Set([
+  "nvidia/gpt-oss-120b",
+  "nvidia/gpt-oss-20b",
+  "nvidia/nemotron-ultra-253b",
+  "nvidia/nemotron-3-super-120b",
+  "nvidia/nemotron-super-49b",
+  "nvidia/deepseek-v3.2",
+  "nvidia/mistral-large-3-675b",
+  "nvidia/qwen3-coder-480b",
+  "nvidia/devstral-2-123b",
+  "nvidia/glm-4.7",
+  "nvidia/llama-4-maverick"
+]);
 var FREE_TIER_CONFIGS = {
-  SIMPLE: { primary: FREE_MODEL, fallback: [] },
-  MEDIUM: { primary: FREE_MODEL, fallback: [] },
-  COMPLEX: { primary: FREE_MODEL, fallback: [] },
-  REASONING: { primary: FREE_MODEL, fallback: [] }
+  SIMPLE: {
+    primary: "nvidia/gpt-oss-20b",
+    fallback: ["nvidia/gpt-oss-120b", "nvidia/nemotron-super-49b"]
+  },
+  MEDIUM: {
+    primary: "nvidia/deepseek-v3.2",
+    fallback: ["nvidia/gpt-oss-120b", "nvidia/nemotron-super-49b"]
+  },
+  COMPLEX: {
+    primary: "nvidia/nemotron-ultra-253b",
+    fallback: ["nvidia/mistral-large-3-675b", "nvidia/deepseek-v3.2", "nvidia/gpt-oss-120b"]
+  },
+  REASONING: {
+    primary: "nvidia/nemotron-ultra-253b",
+    fallback: ["nvidia/nemotron-3-super-120b", "nvidia/deepseek-v3.2"]
+  }
 };
 var freeRequestCount = 0;
 var MAX_MESSAGES = 200;
@@ -49192,30 +49420,7 @@ async function proxyRequest(req, res, apiBase, payFetch, options, routerOpts, de
         modelId = resolvedModel;
       }
       if (isRoutingProfile) {
-        if (routingProfile === "free") {
-          const freeModel = "nvidia/gpt-oss-120b";
-          console.log(`[ClawRouter] Free profile - using ${freeModel} directly`);
-          parsed.model = freeModel;
-          modelId = freeModel;
-          bodyModified = true;
-          freeRequestCount++;
-          if (freeRequestCount % 5 === 0) {
-            balanceFallbackNotice = `> **\u{1F4A1} Tip:** Not satisfied with free model quality? Fund your wallet to unlock deepseek-chat, gemini-flash, and 30+ premium models \u2014 starting at $0.001/request.
-
-`;
-          }
-          routingDecision = {
-            model: freeModel,
-            tier: "SIMPLE",
-            confidence: 1,
-            method: "rules",
-            reasoning: "free profile",
-            costEstimate: 0,
-            baselineCost: 0,
-            savings: 1,
-            tierConfigs: FREE_TIER_CONFIGS
-          };
-        } else {
+        {
           effectiveSessionId = getSessionId(req.headers) ?? deriveSessionId(parsedMessages);
           const existingSession = effectiveSessionId ? sessionStore.getSession(effectiveSessionId) : void 0;
           const rawPrompt = lastUserMsg?.content;
@@ -49331,6 +49536,14 @@ async function proxyRequest(req, res, apiBase, payFetch, options, routerOpts, de
             }
           }
           options.onRouted?.(routingDecision);
+          if (routingProfile === "free") {
+            freeRequestCount++;
+            if (freeRequestCount % 5 === 0) {
+              balanceFallbackNotice = `> **\u{1F4A1} Tip:** Free tier gives you 11 NVIDIA models. Want Claude, GPT-5, or Gemini? Fund your wallet \u2014 starting at $0.001/request.
+
+`;
+            }
+          }
         }
       }
       if (!effectiveSessionId && parsedMessages.length > 0) {
@@ -49426,7 +49639,7 @@ async function proxyRequest(req, res, apiBase, payFetch, options, routerOpts, de
   }
   deduplicator.markInflight(dedupKey);
   let estimatedCostMicros;
-  let isFreeModel = modelId === FREE_MODEL;
+  let isFreeModel = FREE_MODELS.has(modelId ?? "");
   if (modelId && !options.skipBalanceCheck && !isFreeModel) {
     const estimated = estimateAmount(modelId, body.length, maxTokens);
     if (estimated) {
@@ -49435,13 +49648,16 @@ async function proxyRequest(req, res, apiBase, payFetch, options, routerOpts, de
       const sufficiency = await balanceMonitor.checkSufficient(bufferedCostMicros);
       if (sufficiency.info.isEmpty || !sufficiency.sufficient) {
         const originalModel = modelId;
+        const fallbackTier = routingDecision?.tier ?? "SIMPLE";
+        const freeTierConfig = FREE_TIER_CONFIGS[fallbackTier];
+        const freeModel = freeTierConfig.primary;
         console.log(
-          `[ClawRouter] Wallet ${sufficiency.info.isEmpty ? "empty" : "insufficient"} (${sufficiency.info.balanceUSD}), falling back to free model: ${FREE_MODEL} (requested: ${originalModel})`
+          `[ClawRouter] Wallet ${sufficiency.info.isEmpty ? "empty" : "insufficient"} (${sufficiency.info.balanceUSD}), falling back to free model: ${freeModel} (tier: ${fallbackTier}, requested: ${originalModel})`
         );
-        modelId = FREE_MODEL;
+        modelId = freeModel;
         isFreeModel = true;
         const parsed = JSON.parse(body.toString());
-        parsed.model = FREE_MODEL;
+        parsed.model = freeModel;
         body = Buffer.from(JSON.stringify(parsed));
         balanceFallbackNotice = sufficiency.info.isEmpty ? `> **\u26A0\uFE0F Wallet empty** \u2014 using free model. Fund your wallet to use ${originalModel}.
 
@@ -49450,7 +49666,7 @@ async function proxyRequest(req, res, apiBase, payFetch, options, routerOpts, de
 `;
         freeRequestCount++;
         if (freeRequestCount % 5 === 0) {
-          balanceFallbackNotice = `> **\u{1F4A1} Tip:** Not satisfied with free model quality? Fund your wallet to unlock deepseek-chat, gemini-flash, and 30+ premium models \u2014 starting at $0.001/request.
+          balanceFallbackNotice = `> **\u{1F4A1} Tip:** Free tier gives you 11 NVIDIA models. Want Claude, GPT-5, or Gemini? Fund your wallet \u2014 starting at $0.001/request.
 
 `;
         }
@@ -49498,7 +49714,7 @@ async function proxyRequest(req, res, apiBase, payFetch, options, routerOpts, de
     const isComplexOrAgentic = hasTools || routingDecision?.tier === "COMPLEX" || routingDecision?.tier === "REASONING";
     if (isComplexOrAgentic) {
       const canAffordAnyNonFreeModel = BLOCKRUN_MODELS.some((m) => {
-        if (m.id === FREE_MODEL) return false;
+        if (FREE_MODELS.has(m.id)) return false;
         const est = estimateAmount(m.id, body.length, maxTokens);
         return est !== void 0 && Number(est) / 1e6 <= remainingUsd;
       });
@@ -49523,7 +49739,7 @@ async function proxyRequest(req, res, apiBase, payFetch, options, routerOpts, de
         deduplicator.removeInflight(dedupKey);
         return;
       }
-    } else if (!routingDecision && modelId && modelId !== FREE_MODEL) {
+    } else if (!routingDecision && modelId && !FREE_MODELS.has(modelId)) {
       const est = estimateAmount(modelId, body.length, maxTokens);
       const canAfford = !est || Number(est) / 1e6 <= remainingUsd;
       if (!canAfford) {
@@ -49664,14 +49880,14 @@ async function proxyRequest(req, res, apiBase, payFetch, options, routerOpts, de
       const remainingUsd = options.maxCostPerRunUsd - runCostUsd;
       const beforeFilter = [...modelsToTry];
       modelsToTry = modelsToTry.filter((m) => {
-        if (m === FREE_MODEL) return true;
+        if (FREE_MODELS.has(m)) return true;
         const est = estimateAmount(m, body.length, maxTokens);
         if (!est) return true;
         return Number(est) / 1e6 <= remainingUsd;
       });
       const excluded = beforeFilter.filter((m) => !modelsToTry.includes(m));
       const isComplexOrAgenticFilter = hasTools || routingDecision?.tier === "COMPLEX" || routingDecision?.tier === "REASONING" || routingDecision === void 0;
-      const filteredToFreeOnly = modelsToTry.length > 0 && modelsToTry.every((m) => m === FREE_MODEL);
+      const filteredToFreeOnly = modelsToTry.length > 0 && modelsToTry.every((m) => FREE_MODELS.has(m));
       if (isComplexOrAgenticFilter && filteredToFreeOnly) {
         const budgetSummary = `$${Math.max(0, remainingUsd).toFixed(4)} remaining (limit: $${options.maxCostPerRunUsd})`;
         console.log(
@@ -49709,7 +49925,7 @@ data: [DONE]
           `[ClawRouter] Budget downgrade (${budgetSummary}): excluded ${excluded.join(", ")}`
         );
         const fromModel = excluded[0];
-        const usingFree = modelsToTry.length === 1 && modelsToTry[0] === FREE_MODEL;
+        const usingFree = modelsToTry.length === 1 && FREE_MODELS.has(modelsToTry[0]);
         if (usingFree) {
           budgetDowngradeNotice = `> **\u26A0\uFE0F Budget cap reached** ($${runCostUsd.toFixed(4)}/$${options.maxCostPerRunUsd}) \u2014 downgraded to free model. Quality may be reduced. Increase \`maxCostPerRun\` to continue with ${fromModel}.
 
@@ -49763,7 +49979,7 @@ data: [DONE]
         upstream = result.response;
         actualModelUsed = tryModel;
         console.log(`[ClawRouter] Success with model: ${tryModel}`);
-        if (options.maxCostPerRunUsd && effectiveSessionId && tryModel !== FREE_MODEL) {
+        if (options.maxCostPerRunUsd && effectiveSessionId && !FREE_MODELS.has(tryModel)) {
           const costEst = estimateAmount(tryModel, body.length, maxTokens);
           if (costEst) {
             sessionStore.addSessionCost(effectiveSessionId, BigInt(costEst));
@@ -49783,7 +49999,7 @@ data: [DONE]
       const isPaymentErr = /payment.*verification.*failed|payment.*settlement.*failed|insufficient.*funds|transaction_simulation_failed/i.test(
         result.errorBody || ""
       );
-      if (isPaymentErr && tryModel !== FREE_MODEL && !isLastAttempt) {
+      if (isPaymentErr && !FREE_MODELS.has(tryModel) && !isLastAttempt) {
         failedAttempts.push({
           ...failedAttempts[failedAttempts.length - 1],
           reason: "payment_error"
@@ -50308,7 +50524,8 @@ import {
   renameSync
 } from "fs";
 import { homedir as homedir7 } from "os";
-import { join as join10 } from "path";
+import { join as join10, dirname as dirname3 } from "path";
+import { fileURLToPath as fileURLToPath2 } from "url";
 init_accounts();
 
 // src/partners/registry.ts
@@ -50728,6 +50945,52 @@ async function waitForProxyHealth(port, timeoutMs = 3e3) {
     await new Promise((r) => setTimeout(r, 100));
   }
   return false;
+}
+function installSkillsToWorkspace(logger) {
+  try {
+    const packageRoot = join10(dirname3(fileURLToPath2(import.meta.url)), "..");
+    const bundledSkillsDir = join10(packageRoot, "skills");
+    if (!existsSync3(bundledSkillsDir)) {
+      return;
+    }
+    const profile = (process["env"].OPENCLAW_PROFILE ?? "").trim().toLowerCase();
+    const workspaceDirName = profile && profile !== "default" ? `workspace-${profile}` : "workspace";
+    const workspaceSkillsDir = join10(homedir7(), ".openclaw", workspaceDirName, "skills");
+    mkdirSync3(workspaceSkillsDir, { recursive: true });
+    const INTERNAL_SKILLS = /* @__PURE__ */ new Set(["release"]);
+    const entries = readdirSync(bundledSkillsDir, { withFileTypes: true });
+    let installed = 0;
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const skillName = entry.name;
+      if (INTERNAL_SKILLS.has(skillName)) continue;
+      const srcSkillFile = join10(bundledSkillsDir, skillName, "SKILL.md");
+      if (!existsSync3(srcSkillFile)) continue;
+      const destDir = join10(workspaceSkillsDir, skillName);
+      const destSkillFile = join10(destDir, "SKILL.md");
+      let needsUpdate = true;
+      if (existsSync3(destSkillFile)) {
+        try {
+          const srcContent = readTextFileSync(srcSkillFile);
+          const destContent = readTextFileSync(destSkillFile);
+          if (srcContent === destContent) needsUpdate = false;
+        } catch {
+        }
+      }
+      if (needsUpdate) {
+        mkdirSync3(destDir, { recursive: true });
+        copyFileSync(srcSkillFile, destSkillFile);
+        installed++;
+      }
+    }
+    if (installed > 0) {
+      logger.info(`Installed ${installed} skill(s) to ${workspaceSkillsDir}`);
+    }
+  } catch (err) {
+    logger.warn(
+      `Failed to install skills: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
 }
 function isCompletionMode() {
   const args = process.argv;
@@ -51415,6 +51678,7 @@ var plugin = {
       api.logger.info("ClawRouter disabled (CLAWROUTER_DISABLED=true). Using default routing.");
       return;
     }
+    installSkillsToWorkspace(api.logger);
     if (isCompletionMode()) {
       api.registerProvider(blockrunProvider);
       return;

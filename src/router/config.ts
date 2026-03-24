@@ -1090,30 +1090,35 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
     },
   },
 
-  // Eco tier configs - absolute cheapest (blockrun/eco)
+  // Eco tier configs - absolute cheapest, free-first (blockrun/eco)
   ecoTiers: {
     SIMPLE: {
-      primary: "nvidia/gpt-oss-120b", // 1,252ms, FREE! $0.00/$0.00
+      primary: "nvidia/gpt-oss-120b", // FREE! $0.00/$0.00
       fallback: [
+        "nvidia/gpt-oss-20b", // FREE — smaller, faster
         "google/gemini-3.1-flash-lite", // $0.25/$1.50 — newest flash-lite
         "openai/gpt-5.4-nano", // $0.20/$1.25 — fast nano
-        "google/gemini-2.5-flash-lite", // 1,353ms, $0.10/$0.40
-        "xai/grok-4-fast-non-reasoning", // 1,143ms, $0.20/$0.50
+        "google/gemini-2.5-flash-lite", // $0.10/$0.40
+        "xai/grok-4-fast-non-reasoning", // $0.20/$0.50
       ],
     },
     MEDIUM: {
-      primary: "google/gemini-3.1-flash-lite", // $0.25/$1.50 — 1M context, newest flash-lite
+      primary: "nvidia/deepseek-v3.2", // FREE — DeepSeek V3.2 quality at zero cost
       fallback: [
-        "openai/gpt-5.4-nano", // $0.20/$1.25, 1M context
-        "google/gemini-2.5-flash-lite", // 1,353ms, $0.10/$0.40
+        "nvidia/gpt-oss-120b", // FREE fallback
+        "google/gemini-3.1-flash-lite", // $0.25/$1.50
+        "openai/gpt-5.4-nano", // $0.20/$1.25
+        "google/gemini-2.5-flash-lite", // $0.10/$0.40
         "xai/grok-4-fast-non-reasoning",
         "google/gemini-2.5-flash",
-        "nvidia/gpt-oss-120b",
       ],
     },
     COMPLEX: {
-      primary: "google/gemini-3.1-flash-lite", // $0.25/$1.50 — 1M context handles complexity
+      primary: "nvidia/nemotron-ultra-253b", // FREE — 253B reasoning model
       fallback: [
+        "nvidia/mistral-large-3-675b", // FREE — 675B brute-force
+        "nvidia/deepseek-v3.2", // FREE
+        "google/gemini-3.1-flash-lite", // $0.25/$1.50
         "google/gemini-2.5-flash-lite",
         "xai/grok-4-0709",
         "google/gemini-2.5-flash",
@@ -1121,8 +1126,12 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
       ],
     },
     REASONING: {
-      primary: "xai/grok-4-1-fast-reasoning", // 1,454ms, $0.20/$0.50
-      fallback: ["xai/grok-4-fast-reasoning", "deepseek/deepseek-reasoner"],
+      primary: "xai/grok-4-1-fast-reasoning", // $0.20/$0.50
+      fallback: [
+        "xai/grok-4-fast-reasoning",
+        "nvidia/nemotron-ultra-253b", // FREE reasoning fallback
+        "deepseek/deepseek-reasoner",
+      ],
     },
   },
 
@@ -1205,6 +1214,50 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
         "anthropic/claude-opus-4.6", // 2,139ms
         "xai/grok-4-1-fast-reasoning", // 1,454ms
         "deepseek/deepseek-reasoner", // 1,454ms
+      ],
+    },
+  },
+
+  // Free tier configs - NVIDIA free models, smart-routed by task type (blockrun/free)
+  freeTiers: {
+    SIMPLE: {
+      primary: "nvidia/gpt-oss-20b", // Fastest: small 20B for simple tasks
+      fallback: [
+        "nvidia/gpt-oss-120b", // Solid general-purpose
+        "nvidia/nemotron-super-49b", // Thinking mode
+        "nvidia/llama-4-maverick", // MoE broad coverage
+        "nvidia/glm-4.7", // Thinking mode
+      ],
+    },
+    MEDIUM: {
+      primary: "nvidia/deepseek-v3.2", // DeepSeek V3.2 quality, zero cost
+      fallback: [
+        "nvidia/gpt-oss-120b", // Strong 120B general-purpose
+        "nvidia/nemotron-super-49b", // Thinking mode
+        "nvidia/mistral-large-3-675b", // Largest Mistral
+        "nvidia/llama-4-maverick", // MoE breadth
+        "nvidia/glm-4.7", // Thinking mode
+      ],
+    },
+    COMPLEX: {
+      primary: "nvidia/nemotron-ultra-253b", // Strongest free: 253B reasoning
+      fallback: [
+        "nvidia/mistral-large-3-675b", // 675B massive params
+        "nvidia/deepseek-v3.2", // V3.2 quality
+        "nvidia/nemotron-3-super-120b", // Thinking mode MoE
+        "nvidia/qwen3-coder-480b", // 480B MoE for code-heavy tasks
+        "nvidia/devstral-2-123b", // Coding-focused
+        "nvidia/gpt-oss-120b", // Last resort
+      ],
+    },
+    REASONING: {
+      primary: "nvidia/nemotron-ultra-253b", // Best free reasoning: 253B
+      fallback: [
+        "nvidia/nemotron-3-super-120b", // Thinking mode MoE
+        "nvidia/nemotron-super-49b", // Thinking mode
+        "nvidia/deepseek-v3.2", // DeepSeek reasoning
+        "nvidia/mistral-large-3-675b", // Brute-force params
+        "nvidia/glm-4.7", // GLM thinking mode
       ],
     },
   },
