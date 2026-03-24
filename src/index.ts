@@ -91,7 +91,10 @@ import { buildPartnerTools, PARTNER_SERVICES } from "./partners/index.js";
  *
  * Only copies if the skill is missing or the content has changed.
  */
-function installSkillsToWorkspace(logger: { info: (msg: string) => void; warn: (msg: string) => void }) {
+function installSkillsToWorkspace(logger: {
+  info: (msg: string) => void;
+  warn: (msg: string) => void;
+}) {
   try {
     // Resolve the package root: dist/index.js -> package root
     const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -104,9 +107,8 @@ function installSkillsToWorkspace(logger: { info: (msg: string) => void; warn: (
 
     // Match OpenClaw's workspace resolution: ~/.openclaw/workspace[-{profile}]/
     const profile = (process["env"].OPENCLAW_PROFILE ?? "").trim().toLowerCase();
-    const workspaceDirName = profile && profile !== "default"
-      ? `workspace-${profile}`
-      : "workspace";
+    const workspaceDirName =
+      profile && profile !== "default" ? `workspace-${profile}` : "workspace";
     const workspaceSkillsDir = join(homedir(), ".openclaw", workspaceDirName, "skills");
     mkdirSync(workspaceSkillsDir, { recursive: true });
 
@@ -151,9 +153,7 @@ function installSkillsToWorkspace(logger: { info: (msg: string) => void; warn: (
       logger.info(`Installed ${installed} skill(s) to ${workspaceSkillsDir}`);
     }
   } catch (err) {
-    logger.warn(
-      `Failed to install skills: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    logger.warn(`Failed to install skills: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
