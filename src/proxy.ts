@@ -685,6 +685,25 @@ export function detectDegradedSuccessResponse(body: string): string | undefined 
       return `degraded response: ${errorText.slice(0, 120)}`;
     }
 
+    // Detect empty-turn responses: model returned 200 but no content and no tool calls.
+    // Happens when models like gemini-3.1-flash-lite receive complex agentic requests
+    // (e.g. Roo Code tool schemas) and produce zero output instead of refusing.
+    const choices = parsed.choices;
+    if (Array.isArray(choices) && choices.length > 0) {
+      const choice = choices[0] as Record<string, unknown>;
+      const msg = (choice.message ?? choice.delta) as Record<string, unknown> | undefined;
+      if (msg) {
+        const content = msg.content;
+        const toolCalls = msg.tool_calls;
+        const hasContent = typeof content === "string" && content.trim().length > 0;
+        const hasToolCalls = Array.isArray(toolCalls) && toolCalls.length > 0;
+        const finishReason = choice.finish_reason as string | null | undefined;
+        if (!hasContent && !hasToolCalls && finishReason === "stop") {
+          return "degraded response: empty turn (no content or tool calls)";
+        }
+      }
+    }
+
     // Successful wrapper with bad assistant content.
     const assistantContent = extractAssistantContent(parsed);
     if (!assistantContent) return undefined;
