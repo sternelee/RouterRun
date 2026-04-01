@@ -25,7 +25,7 @@ $walletBackup = $null
 if (Test-Path $WALLET_FILE) {
     $walletKey = (Get-Content $WALLET_FILE -Raw).Trim()
     if ($walletKey -match '^0x[0-9a-fA-F]{64}$') {
-        $walletBackup = "$WALLET_FILE.bak.$(Get-Date -UFormat '%s')"
+        $walletBackup = "$WALLET_FILE.bak.$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
         Copy-Item $WALLET_FILE $walletBackup
         Write-Ok "Wallet backed up: $walletBackup"
     } else {
@@ -78,7 +78,8 @@ Write-Step "Verifying provider config..."
 if (Test-Path $CONFIG_PATH) {
     try {
         $cfg = Get-Content $CONFIG_PATH -Raw | ConvertFrom-Json
-        $provider = $cfg.models?.providers?.blockrun
+        $provider = $null
+        if ($cfg.models -and $cfg.models.providers) { $provider = $cfg.models.providers.blockrun }
         if ($provider) {
             $changed = $false
             if (-not $provider.baseUrl) { $provider | Add-Member -NotePropertyName baseUrl -NotePropertyValue 'http://127.0.0.1:8402/v1' -Force; $changed = $true; Write-Ok "Fixed missing baseUrl" }
