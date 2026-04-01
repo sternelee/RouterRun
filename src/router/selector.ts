@@ -47,8 +47,7 @@ export function selectModel(
     const inputPrice = pricing?.inputPrice ?? 0;
     const outputPrice = pricing?.outputPrice ?? 0;
     costEstimate =
-      (estimatedInputTokens / 1_000_000) * inputPrice +
-      (maxOutputTokens / 1_000_000) * outputPrice;
+      (estimatedInputTokens / 1_000_000) * inputPrice + (maxOutputTokens / 1_000_000) * outputPrice;
   }
 
   // Baseline: what Claude Opus 4.5 would cost (the premium reference)

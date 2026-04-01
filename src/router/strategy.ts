@@ -5,7 +5,14 @@
  * Default: RulesStrategy — identical to the original inline route() logic, <1ms.
  */
 
-import type { Tier, TierConfig, Promotion, RoutingDecision, RouterStrategy, RouterOptions } from "./types.js";
+import type {
+  Tier,
+  TierConfig,
+  Promotion,
+  RoutingDecision,
+  RouterStrategy,
+  RouterOptions,
+} from "./types.js";
 import { classifyByRules } from "./rules.js";
 import { selectModel } from "./selector.js";
 
@@ -41,7 +48,10 @@ function applyPromotions(
     }
 
     // Merge overrides
-    for (const [tier, override] of Object.entries(promo.tierOverrides) as [Tier, Partial<TierConfig>][]) {
+    for (const [tier, override] of Object.entries(promo.tierOverrides) as [
+      Tier,
+      Partial<TierConfig>,
+    ][]) {
       if (!result[tier]) continue;
       if (override.primary) result[tier].primary = override.primary;
       if (override.fallback) result[tier].fallback = override.fallback;

@@ -127,7 +127,9 @@ async function cmdWallet(port: number): Promise<void> {
 
 async function cmdModels(port: number): Promise<void> {
   try {
-    const data = (await queryProxy("/v1/models", port)) as { data: Array<{ id: string; owned_by?: string }> };
+    const data = (await queryProxy("/v1/models", port)) as {
+      data: Array<{ id: string; owned_by?: string }>;
+    };
     console.log(`\nAvailable Models (${data.data.length})\n`);
 
     // Group by provider
@@ -166,14 +168,18 @@ async function cmdStats(port: number, days: number): Promise<void> {
     console.log(`  Requests: ${stats.totalRequests ?? 0}`);
     console.log(`  Cost:     $${(stats.totalCostUsd ?? 0).toFixed(4)}`);
     if (stats.savedUsd) {
-      console.log(`  Saved:    $${stats.savedUsd.toFixed(4)} (${stats.savingsPercent?.toFixed(0) ?? 0}% vs Opus)`);
+      console.log(
+        `  Saved:    $${stats.savedUsd.toFixed(4)} (${stats.savingsPercent?.toFixed(0) ?? 0}% vs Opus)`,
+      );
     }
 
     if (stats.topModels && stats.topModels.length > 0) {
       console.log();
       console.log(`  Top Models:`);
       for (const m of stats.topModels.slice(0, 10)) {
-        console.log(`    ${m.model.padEnd(40)} ${String(m.requests).padStart(5)} reqs  $${m.costUsd.toFixed(4)}`);
+        console.log(
+          `    ${m.model.padEnd(40)} ${String(m.requests).padStart(5)} reqs  $${m.costUsd.toFixed(4)}`,
+        );
       }
     }
     console.log();
