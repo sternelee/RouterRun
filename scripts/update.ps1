@@ -113,7 +113,11 @@ $tmpDir = Join-Path $env:TEMP "clawrouter-install-$(Get-Random)"
 New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
 
 try {
-    npm pack "@blockrun/clawrouter@$LATEST_VERSION" --pack-destination $tmpDir --prefer-online 2>&1 | Out-Null
+    # npm writes notices to stderr — use SilentlyContinue so PS doesn't treat them as errors
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
+    $null = npm pack "@blockrun/clawrouter@$LATEST_VERSION" --pack-destination $tmpDir --prefer-online 2>&1
+    $ErrorActionPreference = $prev
 
     $tarball = Get-ChildItem "$tmpDir\*.tgz" | Select-Object -First 1
     if (-not $tarball) { throw "npm pack produced no tarball in $tmpDir" }
@@ -136,11 +140,14 @@ try {
 # ── Step 5b: Install npm dependencies ─────────────────────────
 Write-Step "Installing dependencies (Solana, x402, etc.)..."
 $logFile = Join-Path $env:TEMP "clawrouter-npm-install.log"
+$logErr  = "$logFile.err"
+$prev = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
 $proc = Start-Process -FilePath "npm" -ArgumentList "install","--omit=dev" -WorkingDirectory $PLUGIN_DIR `
-        -RedirectStandardOutput $logFile -RedirectStandardError "$logFile.err" -Wait -PassThru -NoNewWindow
+        -RedirectStandardOutput $logFile -RedirectStandardError $logErr -Wait -PassThru -NoNewWindow
+$ErrorActionPreference = $prev
 if ($proc.ExitCode -ne 0) {
     Write-Err "npm install failed. Log: $logFile"
-    Get-Content "$logFile.err" -ErrorAction SilentlyContinue | Select-Object -Last 20 | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
+    Get-Content $logErr -ErrorAction SilentlyContinue | Select-Object -Last 20 | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
     exit 1
 }
 Write-Ok "Dependencies installed"
