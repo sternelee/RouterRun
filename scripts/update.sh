@@ -589,8 +589,8 @@ if [ -f "$WALLET_FILE" ]; then
     try {
       const { privateKeyToAccount } = require('$HOME/.openclaw/extensions/clawrouter/node_modules/viem/accounts/index.js');
       console.log(privateKeyToAccount('$FINAL_KEY').address);
-    } catch { console.log('(run /wallet in OpenClaw to see your address)'); }
-  " 2>/dev/null || echo "(run /wallet in OpenClaw to see your address)")
+    } catch { console.log('(run /blockrun in OpenClaw to see your address)'); }
+  " 2>/dev/null || echo "(run /blockrun in OpenClaw to see your address)")
 
   echo "  Wallet: $FINAL_ADDRESS"
   echo "  Key file: $WALLET_FILE"
@@ -637,5 +637,5 @@ echo "    npx @blockrun/clawrouter report weekly      # weekly report"
 echo "    npx @blockrun/clawrouter report monthly     # monthly report"
 echo "    npx @blockrun/clawrouter doctor             # AI diagnostics"
 echo ""
-echo "  ⚠  Back up your wallet key: /wallet export  (in OpenClaw)"
+echo "  ⚠  Back up your wallet key: /blockrun export  (in OpenClaw)"
 echo ""

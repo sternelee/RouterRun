@@ -1005,8 +1005,8 @@ function restartProxyForChainSwitch(api: OpenClawPluginApi): void {
 
 function createWalletCommand(api?: OpenClawPluginApi): OpenClawPluginCommandDefinition {
   return {
-    name: "wallet",
-    description: "Show BlockRun wallet info, usage stats, or export private key",
+    name: "blockrun",
+    description: "Show BlockRun wallet info, balance, chain, or export key",
     acceptsArgs: true,
     requireAuth: true,
     handler: async (ctx: PluginCommandContext) => {
@@ -1268,12 +1268,12 @@ function createWalletCommand(api?: OpenClawPluginApi): OpenClawPluginCommandDefi
           `**Key File:** \`${WALLET_FILE}\``,
           "",
           "**Commands:**",
-          "• `/wallet` - Show this status",
-          "• `/wallet export` - Export private key for backup",
+          "• `/blockrun` - Show this status",
+          "• `/blockrun export` - Export private key for backup",
           "• `/stats` - Detailed usage breakdown",
-          !solanaSection ? "• `/wallet solana` - Enable Solana payments" : "",
-          solanaSection ? "• `/wallet base` - Switch to Base (EVM)" : "",
-          solanaSection ? "• `/wallet solana` - Switch to Solana" : "",
+          !solanaSection ? "• `/blockrun solana` - Enable Solana payments" : "",
+          solanaSection ? "• `/blockrun base` - Switch to Base (EVM)" : "",
+          solanaSection ? "• `/blockrun solana` - Switch to Solana" : "",
         ]
           .filter(Boolean)
           .join("\n"),
@@ -1404,9 +1404,12 @@ const plugin: OpenClawPluginDefinition = {
     // Register commands synchronously so OpenClaw sees them during the register() call.
     // These factories are plain functions (no top-level await) — marking them async
     // caused .then() callbacks to fire after register() returned, making OpenClaw miss them.
+    // NOTE: command name is "blockrun" (not "wallet") to avoid conflict with
+    // the Crossmint/lobster built-in plugin which already claims "wallet".
     api.registerCommand(createWalletCommand(api));
     api.registerCommand(createStatsCommand());
     api.registerCommand(createExcludeCommand());
+    api.logger.info("Commands registered: /blockrun, /stats, /exclude");
 
     // Register a service with stop() for cleanup on gateway shutdown
     // This prevents EADDRINUSE when the gateway restarts

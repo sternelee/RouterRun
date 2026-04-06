@@ -80993,8 +80993,8 @@ function restartProxyForChainSwitch(api) {
 }
 function createWalletCommand(api) {
   return {
-    name: "wallet",
-    description: "Show BlockRun wallet info, usage stats, or export private key",
+    name: "blockrun",
+    description: "Show BlockRun wallet info, balance, chain, or export key",
     acceptsArgs: true,
     requireAuth: true,
     handler: async (ctx) => {
@@ -81208,12 +81208,12 @@ Run \`openclaw plugins install @blockrun/clawrouter\` to generate a wallet.`,
           `**Key File:** \`${WALLET_FILE}\``,
           "",
           "**Commands:**",
-          "\u2022 `/wallet` - Show this status",
-          "\u2022 `/wallet export` - Export private key for backup",
+          "\u2022 `/blockrun` - Show this status",
+          "\u2022 `/blockrun export` - Export private key for backup",
           "\u2022 `/stats` - Detailed usage breakdown",
-          !solanaSection ? "\u2022 `/wallet solana` - Enable Solana payments" : "",
-          solanaSection ? "\u2022 `/wallet base` - Switch to Base (EVM)" : "",
-          solanaSection ? "\u2022 `/wallet solana` - Switch to Solana" : ""
+          !solanaSection ? "\u2022 `/blockrun solana` - Enable Solana payments" : "",
+          solanaSection ? "\u2022 `/blockrun base` - Switch to Base (EVM)" : "",
+          solanaSection ? "\u2022 `/blockrun solana` - Switch to Solana" : ""
         ].filter(Boolean).join("\n")
       };
     }
@@ -81302,6 +81302,7 @@ var plugin = {
     api.registerCommand(createWalletCommand(api));
     api.registerCommand(createStatsCommand());
     api.registerCommand(createExcludeCommand());
+    api.logger.info("Commands registered: /blockrun, /stats, /exclude");
     api.registerService({
       id: "clawrouter-proxy",
       start: () => {
