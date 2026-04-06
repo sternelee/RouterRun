@@ -806,7 +806,38 @@ async function createExcludeCommand(): Promise<OpenClawPluginCommandDefinition> 
  * - /wallet or /wallet status: Show wallet address, balance, usage, and key file location
  * - /wallet export: Show private key for backup (with security warning)
  */
-async function createWalletCommand(): Promise<OpenClawPluginCommandDefinition> {
+
+/**
+ * Restart the proxy in-place after a chain switch.
+ * Closes the running proxy (freeing port 8402) and starts a fresh one
+ * that reads the newly persisted payment-chain preference from disk.
+ * Fire-and-forget — the wallet command returns immediately with a status message.
+ */
+function restartProxyForChainSwitch(api: OpenClawPluginApi): void {
+  const oldHandle = activeProxyHandle;
+  activeProxyHandle = null;
+  const doRestart = async () => {
+    if (oldHandle) {
+      try {
+        await oldHandle.close();
+      } catch {
+        // Ignore close errors — port may already be free
+      }
+    }
+    // Brief pause so the OS releases the port before we re-bind
+    await new Promise((r) => setTimeout(r, 300));
+    await startProxyInBackground(api);
+  };
+  doRestart().catch((err) => {
+    api.logger.error(
+      `Failed to restart proxy after chain switch: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
+}
+
+async function createWalletCommand(
+  api?: OpenClawPluginApi,
+): Promise<OpenClawPluginCommandDefinition> {
   return {
     name: "wallet",
     description: "Show BlockRun wallet info, usage stats, or export private key",
@@ -909,16 +940,18 @@ async function createWalletCommand(): Promise<OpenClawPluginCommandDefinition> {
           if (existsSync(MNEMONIC_FILE)) {
             const existingMnemonic = readTextFileSync(MNEMONIC_FILE).trim();
             if (existingMnemonic) {
-              // Already set up — just switch chain
+              // Already set up — switch chain and restart proxy in-place
               await savePaymentChain("solana");
               const { deriveSolanaKeyBytes } = await import("./wallet.js");
               const solKeyBytes = deriveSolanaKeyBytes(existingMnemonic);
               const { createKeyPairSignerFromPrivateKeyBytes } = await import("@solana/kit");
               const signer = await createKeyPairSignerFromPrivateKeyBytes(solKeyBytes);
               solanaAddr = signer.address;
+              if (api) restartProxyForChainSwitch(api);
               return {
                 text: [
-                  "Payment chain set to Solana. Restart the gateway to apply.",
+                  "✓ Payment chain switched to **Solana**.",
+                  api ? "Proxy restarting in background (~2s)." : "Restart the gateway to apply.",
                   "",
                   `**Solana Address:** \`${solanaAddr}\``,
                   `**Fund with USDC on Solana:** https://solscan.io/account/${solanaAddr}`,
@@ -932,6 +965,7 @@ async function createWalletCommand(): Promise<OpenClawPluginCommandDefinition> {
           await savePaymentChain("solana");
           const { createKeyPairSignerFromPrivateKeyBytes } = await import("@solana/kit");
           const signer = await createKeyPairSignerFromPrivateKeyBytes(solanaPrivateKeyBytes);
+          if (api) restartProxyForChainSwitch(api);
           return {
             text: [
               "**Solana Wallet Set Up**",
@@ -940,7 +974,9 @@ async function createWalletCommand(): Promise<OpenClawPluginCommandDefinition> {
               `**Mnemonic File:** \`${MNEMONIC_FILE}\``,
               "",
               "Your existing EVM wallet is unchanged.",
-              "Payment chain set to Solana. Restart the gateway to apply.",
+              api
+                ? "✓ Payment chain switched to Solana. Proxy restarting in background (~2s)."
+                : "Payment chain set to Solana. Restart the gateway to apply.",
               "",
               `**Fund with USDC on Solana:** https://solscan.io/account/${signer.address}`,
             ].join("\n"),
@@ -957,8 +993,11 @@ async function createWalletCommand(): Promise<OpenClawPluginCommandDefinition> {
         // Switch back to Base (EVM) payment chain
         try {
           await savePaymentChain("base");
+          if (api) restartProxyForChainSwitch(api);
           return {
-            text: "Payment chain set to Base (EVM). Restart the gateway to apply.",
+            text: api
+              ? "✓ Payment chain switched to **Base (EVM)**. Proxy restarting in background (~2s)."
+              : "Payment chain set to Base (EVM). Restart the gateway to apply.",
           };
         } catch (err) {
           return {
@@ -1190,7 +1229,7 @@ const plugin: OpenClawPluginDefinition = {
     }
 
     // Register /wallet command — shows wallet info + per-model usage stats
-    createWalletCommand()
+    createWalletCommand(api)
       .then((walletCommand) => {
         api.registerCommand(walletCommand);
       })
