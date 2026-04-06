@@ -519,6 +519,39 @@ if (fs.existsSync(configPath)) {
 }
 "
 
+# 8. Ensure gateway.mode is set (required by OpenClaw v2026.4.5+)
+echo "→ Ensuring gateway.mode is set..."
+node -e "
+const os = require('os');
+const fs = require('fs');
+const path = require('path');
+const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json');
+function atomicWrite(filePath, data) {
+  const tmpPath = filePath + '.tmp.' + process.pid;
+  fs.writeFileSync(tmpPath, data);
+  fs.renameSync(tmpPath, filePath);
+}
+
+if (fs.existsSync(configPath)) {
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    if (!config.gateway) config.gateway = {};
+    if (!config.gateway.mode) {
+      config.gateway.mode = 'local';
+      atomicWrite(configPath, JSON.stringify(config, null, 2));
+      console.log('  Set gateway.mode = local (required by OpenClaw v2026.4.5+)');
+    } else {
+      console.log('  gateway.mode already set: ' + config.gateway.mode);
+    }
+  } catch (e) {
+    console.log('  Could not update config:', e.message);
+    console.log('  Fix manually: openclaw config set gateway.mode local');
+  }
+} else {
+  console.log('  No openclaw.json found, skipping');
+}
+"
+
 # Final: verify wallet survived reinstall
 echo "→ Verifying wallet integrity..."
 if [ -f "$WALLET_FILE" ]; then
