@@ -53,16 +53,20 @@ export const MODEL_ALIASES: Record<string, string> = {
   mini: "openai/gpt-4o-mini",
   o1: "openai/o1",
   o3: "openai/o3",
+  // OpenAI Codex prefix aliases (OpenClaw v2026.4.5 openai-codex/ model ID format)
+  "openai-codex/gpt-5.4-mini": "openai/gpt-5.4-mini",
+  "gpt-5.4-mini": "openai/gpt-5.4-mini",
 
   // DeepSeek
   deepseek: "deepseek/deepseek-chat",
   "deepseek-chat": "deepseek/deepseek-chat",
   reasoner: "deepseek/deepseek-reasoner",
 
-  // Kimi / Moonshot
-  kimi: "moonshot/kimi-k2.5",
-  moonshot: "moonshot/kimi-k2.5",
-  "kimi-k2.5": "moonshot/kimi-k2.5",
+  // Kimi / Moonshot — nvidia-hosted is more reliable than moonshot direct API
+  kimi: "nvidia/kimi-k2.5",
+  moonshot: "nvidia/kimi-k2.5",
+  "kimi-k2.5": "nvidia/kimi-k2.5",
+  "moonshot/kimi-k2.5": "nvidia/kimi-k2.5",
 
   // Google
   gemini: "google/gemini-2.5-pro",
@@ -70,6 +74,7 @@ export const MODEL_ALIASES: Record<string, string> = {
   "gemini-3.1-pro-preview": "google/gemini-3.1-pro",
   "google/gemini-3.1-pro-preview": "google/gemini-3.1-pro",
   "gemini-3.1-flash-lite": "google/gemini-3.1-flash-lite",
+  "gemini-2.5-flash-lite": "google/gemini-2.5-flash-lite",
 
   // xAI
   grok: "xai/grok-3",
@@ -167,6 +172,18 @@ export function resolveModelAlias(model: string): string {
     // If it's a known BlockRun virtual profile (eco, auto, premium), return bare id
     const isVirtualProfile = BLOCKRUN_MODELS.some((m) => m.id === withoutPrefix);
     if (isVirtualProfile) return withoutPrefix;
+  }
+
+  // Strip "openai-codex/" prefix (OpenClaw v2026.4.5 model ID format).
+  // e.g. "openai-codex/gpt-5.4-mini" -> check alias, then strip prefix.
+  if (normalized.startsWith("openai-codex/")) {
+    const withoutPrefix = normalized.slice("openai-codex/".length);
+    const resolvedWithoutPrefix = MODEL_ALIASES[withoutPrefix];
+    if (resolvedWithoutPrefix) return resolvedWithoutPrefix;
+
+    // Fall back to checking if the bare name is a known model
+    const isKnownModel = BLOCKRUN_MODELS.some((m) => m.id === withoutPrefix);
+    if (isKnownModel) return withoutPrefix;
   }
 
   return model;
@@ -301,6 +318,18 @@ export const BLOCKRUN_MODELS: BlockRunModel[] = [
     contextWindow: 400000,
     maxOutput: 128000,
     reasoning: true,
+    vision: true,
+    agentic: true,
+    toolCalling: true,
+  },
+  {
+    id: "openai/gpt-5.4-mini",
+    name: "GPT-5.4 Mini",
+    version: "5.4",
+    inputPrice: 0.75,
+    outputPrice: 4.5,
+    contextWindow: 400000,
+    maxOutput: 128000,
     vision: true,
     agentic: true,
     toolCalling: true,
@@ -610,10 +639,23 @@ export const BLOCKRUN_MODELS: BlockRunModel[] = [
     toolCalling: true,
   },
 
-  // Moonshot / Kimi - optimized for agentic workflows
+  // Kimi K2.5 — prefer nvidia-hosted (more reliable); moonshot direct API is unreliable
+  {
+    id: "nvidia/kimi-k2.5",
+    name: "Kimi K2.5",
+    version: "k2.5",
+    inputPrice: 0.6,
+    outputPrice: 3.0,
+    contextWindow: 262144,
+    maxOutput: 16384,
+    reasoning: true,
+    vision: true,
+    agentic: true,
+    toolCalling: true,
+  },
   {
     id: "moonshot/kimi-k2.5",
-    name: "Kimi K2.5",
+    name: "Kimi K2.5 (Moonshot)",
     version: "k2.5",
     inputPrice: 0.6,
     outputPrice: 3.0,
@@ -623,6 +665,8 @@ export const BLOCKRUN_MODELS: BlockRunModel[] = [
     vision: true,
     agentic: true,
     toolCalling: true,
+    deprecated: true,
+    fallbackModel: "nvidia/kimi-k2.5",
   },
 
   // xAI / Grok
@@ -852,18 +896,6 @@ export const BLOCKRUN_MODELS: BlockRunModel[] = [
     contextWindow: 131072,
     maxOutput: 16384,
     reasoning: true,
-  },
-
-  // NVIDIA - Paid models
-  {
-    id: "nvidia/kimi-k2.5",
-    name: "NVIDIA Kimi K2.5",
-    version: "k2.5",
-    inputPrice: 0.6,
-    outputPrice: 3.0,
-    contextWindow: 262144,
-    maxOutput: 16384,
-    toolCalling: true,
   },
 
   // Z.AI GLM-5 Models

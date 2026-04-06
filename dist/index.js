@@ -57666,20 +57666,25 @@ var MODEL_ALIASES = {
   mini: "openai/gpt-4o-mini",
   o1: "openai/o1",
   o3: "openai/o3",
+  // OpenAI Codex prefix aliases (OpenClaw v2026.4.5 openai-codex/ model ID format)
+  "openai-codex/gpt-5.4-mini": "openai/gpt-5.4-mini",
+  "gpt-5.4-mini": "openai/gpt-5.4-mini",
   // DeepSeek
   deepseek: "deepseek/deepseek-chat",
   "deepseek-chat": "deepseek/deepseek-chat",
   reasoner: "deepseek/deepseek-reasoner",
-  // Kimi / Moonshot
-  kimi: "moonshot/kimi-k2.5",
-  moonshot: "moonshot/kimi-k2.5",
-  "kimi-k2.5": "moonshot/kimi-k2.5",
+  // Kimi / Moonshot — nvidia-hosted is more reliable than moonshot direct API
+  kimi: "nvidia/kimi-k2.5",
+  moonshot: "nvidia/kimi-k2.5",
+  "kimi-k2.5": "nvidia/kimi-k2.5",
+  "moonshot/kimi-k2.5": "nvidia/kimi-k2.5",
   // Google
   gemini: "google/gemini-2.5-pro",
   flash: "google/gemini-2.5-flash",
   "gemini-3.1-pro-preview": "google/gemini-3.1-pro",
   "google/gemini-3.1-pro-preview": "google/gemini-3.1-pro",
   "gemini-3.1-flash-lite": "google/gemini-3.1-flash-lite",
+  "gemini-2.5-flash-lite": "google/gemini-2.5-flash-lite",
   // xAI
   grok: "xai/grok-3",
   "grok-fast": "xai/grok-4-fast-reasoning",
@@ -57754,6 +57759,13 @@ function resolveModelAlias(model) {
     if (resolvedWithoutPrefix) return resolvedWithoutPrefix;
     const isVirtualProfile = BLOCKRUN_MODELS.some((m) => m.id === withoutPrefix);
     if (isVirtualProfile) return withoutPrefix;
+  }
+  if (normalized.startsWith("openai-codex/")) {
+    const withoutPrefix = normalized.slice("openai-codex/".length);
+    const resolvedWithoutPrefix = MODEL_ALIASES[withoutPrefix];
+    if (resolvedWithoutPrefix) return resolvedWithoutPrefix;
+    const isKnownModel = BLOCKRUN_MODELS.some((m) => m.id === withoutPrefix);
+    if (isKnownModel) return withoutPrefix;
   }
   return model;
 }
@@ -57850,6 +57862,18 @@ var BLOCKRUN_MODELS = [
     contextWindow: 4e5,
     maxOutput: 128e3,
     reasoning: true,
+    vision: true,
+    agentic: true,
+    toolCalling: true
+  },
+  {
+    id: "openai/gpt-5.4-mini",
+    name: "GPT-5.4 Mini",
+    version: "5.4",
+    inputPrice: 0.75,
+    outputPrice: 4.5,
+    contextWindow: 4e5,
+    maxOutput: 128e3,
     vision: true,
     agentic: true,
     toolCalling: true
@@ -58151,10 +58175,23 @@ var BLOCKRUN_MODELS = [
     reasoning: true,
     toolCalling: true
   },
-  // Moonshot / Kimi - optimized for agentic workflows
+  // Kimi K2.5 — prefer nvidia-hosted (more reliable); moonshot direct API is unreliable
+  {
+    id: "nvidia/kimi-k2.5",
+    name: "Kimi K2.5",
+    version: "k2.5",
+    inputPrice: 0.6,
+    outputPrice: 3,
+    contextWindow: 262144,
+    maxOutput: 16384,
+    reasoning: true,
+    vision: true,
+    agentic: true,
+    toolCalling: true
+  },
   {
     id: "moonshot/kimi-k2.5",
-    name: "Kimi K2.5",
+    name: "Kimi K2.5 (Moonshot)",
     version: "k2.5",
     inputPrice: 0.6,
     outputPrice: 3,
@@ -58163,7 +58200,9 @@ var BLOCKRUN_MODELS = [
     reasoning: true,
     vision: true,
     agentic: true,
-    toolCalling: true
+    toolCalling: true,
+    deprecated: true,
+    fallbackModel: "nvidia/kimi-k2.5"
   },
   // xAI / Grok
   {
@@ -58389,17 +58428,6 @@ var BLOCKRUN_MODELS = [
     contextWindow: 131072,
     maxOutput: 16384,
     reasoning: true
-  },
-  // NVIDIA - Paid models
-  {
-    id: "nvidia/kimi-k2.5",
-    name: "NVIDIA Kimi K2.5",
-    version: "k2.5",
-    inputPrice: 0.6,
-    outputPrice: 3,
-    contextWindow: 262144,
-    maxOutput: 16384,
-    toolCalling: true
   },
   // Z.AI GLM-5 Models
   {
@@ -73831,7 +73859,7 @@ var DEFAULT_ROUTING_CONFIG = {
         // 1,398ms, IQ 46 — smarter fallback
         "deepseek/deepseek-chat",
         // 1,431ms, IQ 32, 41% retention
-        "moonshot/kimi-k2.5",
+        "nvidia/kimi-k2.5",
         // 1,646ms, IQ 47, strong quality
         "google/gemini-3.1-flash-lite",
         // $0.25/$1.50, 1M context — newest flash-lite
@@ -73846,7 +73874,7 @@ var DEFAULT_ROUTING_CONFIG = {
       ]
     },
     MEDIUM: {
-      primary: "moonshot/kimi-k2.5",
+      primary: "nvidia/kimi-k2.5",
       // 1,646ms, IQ 47, $0.60/$3.00 — strong tool use, quality output
       fallback: [
         "google/gemini-3-flash-preview",
@@ -73952,7 +73980,7 @@ var DEFAULT_ROUTING_CONFIG = {
   // codex=complex coding, kimi=simple coding, sonnet=reasoning/instructions, opus=architecture/PM/audits
   premiumTiers: {
     SIMPLE: {
-      primary: "moonshot/kimi-k2.5",
+      primary: "nvidia/kimi-k2.5",
       // $0.60/$3.00 - good for simple coding
       fallback: [
         "google/gemini-2.5-flash",
@@ -73966,7 +73994,7 @@ var DEFAULT_ROUTING_CONFIG = {
       primary: "openai/gpt-5.3-codex",
       // $1.75/$14 - 400K context, 128K output, replaces 5.2
       fallback: [
-        "moonshot/kimi-k2.5",
+        "nvidia/kimi-k2.5",
         "google/gemini-2.5-flash",
         // 60% retention, good coding capability
         "google/gemini-2.5-pro",
@@ -73986,7 +74014,7 @@ var DEFAULT_ROUTING_CONFIG = {
         "google/gemini-3.1-pro",
         // Newest Gemini
         "google/gemini-3-pro-preview",
-        "moonshot/kimi-k2.5"
+        "nvidia/kimi-k2.5"
       ]
     },
     REASONING: {
@@ -74010,7 +74038,7 @@ var DEFAULT_ROUTING_CONFIG = {
       primary: "openai/gpt-4o-mini",
       // $0.15/$0.60 - best tool compliance at lowest cost
       fallback: [
-        "moonshot/kimi-k2.5",
+        "nvidia/kimi-k2.5",
         // 1,646ms, strong tool use quality
         "anthropic/claude-haiku-4.5",
         // 2,305ms
@@ -74019,7 +74047,7 @@ var DEFAULT_ROUTING_CONFIG = {
       ]
     },
     MEDIUM: {
-      primary: "moonshot/kimi-k2.5",
+      primary: "nvidia/kimi-k2.5",
       // 1,646ms, $0.60/$3.00 - strong tool use, proper function calls
       fallback: [
         "xai/grok-4-1-fast-non-reasoning",
