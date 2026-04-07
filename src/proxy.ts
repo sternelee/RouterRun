@@ -4167,7 +4167,9 @@ async function proxyRequest(
         // Find a free model already in the chain
         const freeInChain = modelsToTry.findIndex((m, idx) => idx > i && FREE_MODELS.has(m));
         if (freeInChain > i + 1) {
-          console.log(`[ClawRouter] Payment error — skipping to free model: ${modelsToTry[freeInChain]}`);
+          console.log(
+            `[ClawRouter] Payment error — skipping to free model: ${modelsToTry[freeInChain]}`,
+          );
           i = freeInChain - 1; // loop will increment to freeInChain
           continue;
         }

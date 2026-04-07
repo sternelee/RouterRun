@@ -1191,57 +1191,57 @@ const plugin: OpenClawPluginDefinition = {
     // Register BlockRun as a provider (sync — available immediately)
     api.registerProvider(blockrunProvider);
 
-      // Register native image and music generation providers so BlockRun models
-      // appear in OpenClaw's /imagine and music generation UIs.
-      api.registerImageGenerationProvider(buildImageGenerationProvider());
-      api.registerMusicGenerationProvider(buildMusicGenerationProvider());
+    // Register native image and music generation providers so BlockRun models
+    // appear in OpenClaw's /imagine and music generation UIs.
+    api.registerImageGenerationProvider(buildImageGenerationProvider());
+    api.registerMusicGenerationProvider(buildMusicGenerationProvider());
 
-      // Inject models config into OpenClaw config file
-      // This persists the config so models are recognized on restart
-      injectModelsConfig(api.logger);
+    // Inject models config into OpenClaw config file
+    // This persists the config so models are recognized on restart
+    injectModelsConfig(api.logger);
 
-      // Inject dummy auth profiles into agent auth stores
-      // OpenClaw's agent system looks for auth even if provider has auth: []
-      injectAuthProfile(api.logger);
+    // Inject dummy auth profiles into agent auth stores
+    // OpenClaw's agent system looks for auth even if provider has auth: []
+    injectAuthProfile(api.logger);
 
-      // Also set runtime config for immediate availability
-      const runtimePort = getProxyPort();
-      if (!api.config.models) {
-        api.config.models = { providers: {} };
+    // Also set runtime config for immediate availability
+    const runtimePort = getProxyPort();
+    if (!api.config.models) {
+      api.config.models = { providers: {} };
+    }
+    if (!api.config.models.providers) {
+      api.config.models.providers = {};
+    }
+    api.config.models.providers.blockrun = {
+      baseUrl: `http://127.0.0.1:${runtimePort}/v1`,
+      api: "openai-completions",
+      // apiKey is required by pi-coding-agent's ModelRegistry for providers with models.
+      apiKey: "x402-proxy-handles-auth",
+      models: OPENCLAW_MODELS,
+    };
+
+    api.logger.info("BlockRun provider registered (55+ models via x402)");
+
+    // Register partner API tools (Twitter/X lookup, etc.)
+    try {
+      const proxyBaseUrl = `http://127.0.0.1:${runtimePort}`;
+      const partnerTools = buildPartnerTools(proxyBaseUrl);
+      for (const tool of partnerTools) {
+        api.registerTool(tool);
       }
-      if (!api.config.models.providers) {
-        api.config.models.providers = {};
-      }
-      api.config.models.providers.blockrun = {
-        baseUrl: `http://127.0.0.1:${runtimePort}/v1`,
-        api: "openai-completions",
-        // apiKey is required by pi-coding-agent's ModelRegistry for providers with models.
-        apiKey: "x402-proxy-handles-auth",
-        models: OPENCLAW_MODELS,
-      };
-
-      api.logger.info("BlockRun provider registered (55+ models via x402)");
-
-      // Register partner API tools (Twitter/X lookup, etc.)
-      try {
-        const proxyBaseUrl = `http://127.0.0.1:${runtimePort}`;
-        const partnerTools = buildPartnerTools(proxyBaseUrl);
-        for (const tool of partnerTools) {
-          api.registerTool(tool);
-        }
-        if (partnerTools.length > 0) {
-          api.logger.info(
-            `Registered ${partnerTools.length} partner tool(s): ${partnerTools.map((t) => t.name).join(", ")}`,
-          );
-        }
-      } catch (err) {
-        api.logger.warn(
-          `Failed to register partner tools: ${err instanceof Error ? err.message : String(err)}`,
+      if (partnerTools.length > 0) {
+        api.logger.info(
+          `Registered ${partnerTools.length} partner tool(s): ${partnerTools.map((t) => t.name).join(", ")}`,
         );
       }
+    } catch (err) {
+      api.logger.warn(
+        `Failed to register partner tools: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
 
-      // Register commands
-      api.registerCommand({
+    // Register commands
+    api.registerCommand({
       name: "partners",
       description: "List available partner APIs and pricing",
       acceptsArgs: false,
@@ -1419,8 +1419,7 @@ const plugin: OpenClawPluginDefinition = {
         // Remove from plugins.allow
         if (Array.isArray(config.plugins?.allow)) {
           config.plugins.allow = config.plugins.allow.filter(
-            (p: string) =>
-              p !== "clawrouter" && p !== "ClawRouter" && p !== "@blockrun/clawrouter",
+            (p: string) => p !== "clawrouter" && p !== "ClawRouter" && p !== "@blockrun/clawrouter",
           );
         }
 
@@ -1443,9 +1442,7 @@ const plugin: OpenClawPluginDefinition = {
         api.logger.info("ClawRouter config cleaned up");
       }
     } catch (err) {
-      api.logger.warn(
-        `Config cleanup failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      api.logger.warn(`Config cleanup failed: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     // 3. Clean auth profiles
