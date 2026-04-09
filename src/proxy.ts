@@ -2700,9 +2700,9 @@ async function proxyRequest(
           "memory_search",
         ]);
         const originalCount = (parsed.tools as unknown[]).length;
-        parsed.tools = (
-          parsed.tools as Array<{ function?: { name?: string } }>
-        ).filter((t) => !OPENCLAW_INTERNAL_TOOLS.has(t?.function?.name ?? ""));
+        parsed.tools = (parsed.tools as Array<{ function?: { name?: string } }>).filter(
+          (t) => !OPENCLAW_INTERNAL_TOOLS.has(t?.function?.name ?? ""),
+        );
         const removed = originalCount - (parsed.tools as unknown[]).length;
         if (removed > 0) {
           console.log(
