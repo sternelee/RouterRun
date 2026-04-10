@@ -134,24 +134,31 @@ describe("/debug command", () => {
 
   it("does not intercept normal messages that just contain 'debug'", async () => {
     // "debug my code" should NOT trigger the /debug handler
-    // This request goes upstream — so it will fail without a funded wallet,
-    // but the key thing is it should NOT return clawrouter/debug model
-    const res = await fetch(`${getTestProxyUrl()}/v1/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "blockrun/auto",
-        messages: [{ role: "user", content: "debug my code" }],
-      }),
-    });
+    // This request should go upstream instead of being intercepted locally.
+    // A short client-side timeout is acceptable here: the key contract is that
+    // we do NOT immediately get the synthetic clawrouter/debug response.
+    try {
+      const res = await fetch(`${getTestProxyUrl()}/v1/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "blockrun/auto",
+          messages: [{ role: "user", content: "debug my code" }],
+        }),
+        signal: AbortSignal.timeout(2_000),
+      });
 
-    // Whether it succeeds or fails upstream, the model should not be "clawrouter/debug"
-    if (res.status === 200) {
-      const body = (await res.json()) as { model: string };
-      expect(body.model).not.toBe("clawrouter/debug");
+      // Whether it succeeds or fails upstream, the model should not be "clawrouter/debug"
+      if (res.status === 200) {
+        const body = (await res.json()) as { model: string };
+        expect(body.model).not.toBe("clawrouter/debug");
+      }
+    } catch (err) {
+      expect(err).toBeInstanceOf(DOMException);
+      expect(["TimeoutError", "AbortError"]).toContain((err as DOMException).name);
     }
-    // If it's a non-200 (payment error), that's fine — it means it went upstream (not intercepted)
-  }, 30_000);
+    // If it's a non-200 or times out client-side, that's fine — it means it went upstream.
+  });
 
   it("includes dimension scores in output", async () => {
     const res = await fetch(`${getTestProxyUrl()}/v1/chat/completions`, {

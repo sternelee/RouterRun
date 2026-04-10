@@ -75,6 +75,42 @@ describe("RulesStrategy", () => {
     expect(decision.tierConfigs).toEqual(DEFAULT_ROUTING_CONFIG.premiumTiers);
   });
 
+  it("falls back to regular tiers when ecoTiers is null without dropping into auto mode", () => {
+    const strategy = new RulesStrategy();
+    const config = {
+      ...DEFAULT_ROUTING_CONFIG,
+      ecoTiers: null,
+    };
+    const decision = strategy.route("hello", undefined, 100, {
+      ...baseOptions,
+      config,
+      routingProfile: "eco",
+      hasTools: true,
+      now: new Date("2025-01-01"),
+    });
+
+    expect(decision.profile).toBe("eco");
+    expect(decision.tierConfigs).toEqual(DEFAULT_ROUTING_CONFIG.tiers);
+  });
+
+  it("falls back to regular tiers when premiumTiers is null without dropping into auto mode", () => {
+    const strategy = new RulesStrategy();
+    const config = {
+      ...DEFAULT_ROUTING_CONFIG,
+      premiumTiers: null,
+    };
+    const decision = strategy.route("hello", undefined, 100, {
+      ...baseOptions,
+      config,
+      routingProfile: "premium",
+      hasTools: true,
+      now: new Date("2025-01-01"),
+    });
+
+    expect(decision.profile).toBe("premium");
+    expect(decision.tierConfigs).toEqual(DEFAULT_ROUTING_CONFIG.tiers);
+  });
+
   it("sets agentic profile when tools are present", () => {
     const strategy = new RulesStrategy();
     const decision = strategy.route("hello", undefined, 100, {

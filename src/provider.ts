@@ -19,7 +19,7 @@ let activeProxy: ProxyHandle | null = null;
 /**
  * Update the proxy handle (called from index.ts when the proxy starts).
  */
-export function setActiveProxy(proxy: ProxyHandle): void {
+export function setActiveProxy(proxy: ProxyHandle | null): void {
   activeProxy = proxy;
 }
 

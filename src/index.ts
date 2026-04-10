@@ -516,10 +516,6 @@ function injectModelsConfig(
   }
 }
 
-function readStringSafe(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
 /**
  * Inject dummy auth profile for BlockRun into agent auth stores.
  * OpenClaw's agent system looks for auth credentials even if provider has auth: [].
@@ -613,13 +609,56 @@ function injectAuthProfile(logger: { info: (msg: string) => void }): void {
 
 // Store active proxy handle for cleanup on gateway_stop
 let activeProxyHandle: Awaited<ReturnType<typeof startProxy>> | null = null;
+type ProcessWithClawRouterState = NodeJS.Process & {
+  __clawrouterProxyStarted?: boolean;
+  __clawrouterDeferredStartTimer?: ReturnType<typeof setTimeout>;
+  __clawrouterStartupGeneration?: number;
+};
+
+function clearDeferredProxyStartTimer(
+  proc: ProcessWithClawRouterState = process as ProcessWithClawRouterState,
+): boolean {
+  if (!proc.__clawrouterDeferredStartTimer) return false;
+  clearTimeout(proc.__clawrouterDeferredStartTimer);
+  proc.__clawrouterDeferredStartTimer = undefined;
+  return true;
+}
+
+function beginProxyStartupAttempt(
+  proc: ProcessWithClawRouterState = process as ProcessWithClawRouterState,
+): number {
+  const generation = (proc.__clawrouterStartupGeneration ?? 0) + 1;
+  proc.__clawrouterStartupGeneration = generation;
+  proc.__clawrouterProxyStarted = true;
+  return generation;
+}
+
+function isProxyStartupCurrent(
+  generation: number,
+  proc: ProcessWithClawRouterState = process as ProcessWithClawRouterState,
+): boolean {
+  return (
+    proc.__clawrouterStartupGeneration === generation && proc.__clawrouterProxyStarted === true
+  );
+}
+
+function resetProxyStartupState(): void {
+  const proc = process as ProcessWithClawRouterState;
+  clearDeferredProxyStartTimer(proc);
+  proc.__clawrouterStartupGeneration = (proc.__clawrouterStartupGeneration ?? 0) + 1;
+  proc.__clawrouterProxyStarted = false;
+  setActiveProxy(null);
+}
 
 /**
  * Start the x402 proxy in the background.
  * Called from register() because OpenClaw's loader only invokes register(),
  * treating activate() as an alias (def.register ?? def.activate).
  */
-async function startProxyInBackground(api: OpenClawPluginApi): Promise<void> {
+async function startProxyInBackground(
+  api: OpenClawPluginApi,
+  startupGeneration?: number,
+): Promise<boolean> {
   // Resolve wallet key: plugin config → saved file → env var → auto-generate.
   // pluginConfig.walletKey is declared in openclaw.plugin.json configSchema but
   // was previously never read here — that was a bug.
@@ -699,6 +738,15 @@ async function startProxyInBackground(api: OpenClawPluginApi): Promise<void> {
     },
   });
 
+  if (startupGeneration !== undefined && !isProxyStartupCurrent(startupGeneration)) {
+    try {
+      await proxy.close();
+    } catch {
+      // Best-effort cleanup for stale startup attempts
+    }
+    return false;
+  }
+
   setActiveProxy(proxy);
   activeProxyHandle = proxy;
 
@@ -753,13 +801,14 @@ async function startProxyInBackground(api: OpenClawPluginApi): Promise<void> {
     .catch(() => {
       api.logger.info(`Wallet (${network}): ${displayAddress} | Balance: (checking...)`);
     });
+  return true;
 }
 
 /**
  * Probe the proxy port and start the proxy in the background if free.
  * Extracted so the deferred-startup timer (#147 fix) can call it too.
  */
-function startProxyAfterPortProbe(api: OpenClawPluginApi): void {
+function startProxyAfterPortProbe(api: OpenClawPluginApi, startupGeneration: number): void {
   const proxyPort = getProxyPort();
   const portProbe = import("node:net").then(
     (net) =>
@@ -777,21 +826,31 @@ function startProxyAfterPortProbe(api: OpenClawPluginApi): void {
   );
   portProbe
     .then((portInUse) => {
+      if (!isProxyStartupCurrent(startupGeneration)) {
+        return;
+      }
       if (portInUse) {
+        resetProxyStartupState();
         api.logger.info(
           `Port ${proxyPort} already in use — skipping proxy startup (another instance running)`,
         );
         return;
       }
-      return startProxyInBackground(api).then(async () => {
+      return startProxyInBackground(api, startupGeneration).then(async (started) => {
+        if (!started || !isProxyStartupCurrent(startupGeneration)) {
+          return;
+        }
         const port = getProxyPort();
         const healthy = await waitForProxyHealth(port, 15000);
-        if (!healthy) {
+        if (!healthy && isProxyStartupCurrent(startupGeneration)) {
           api.logger.warn(`Proxy health check timed out, commands may not work immediately`);
         }
       });
     })
     .catch((err) => {
+      if (isProxyStartupCurrent(startupGeneration)) {
+        resetProxyStartupState();
+      }
       api.logger.error(
         `Failed to start BlockRun proxy: ${err instanceof Error ? err.message : String(err)}`,
       );
@@ -980,6 +1039,7 @@ function buildMusicGenerationProvider(): MusicGenerationProviderPlugin {
 function restartProxyForChainSwitch(api: OpenClawPluginApi): void {
   const oldHandle = activeProxyHandle;
   activeProxyHandle = null;
+  const restartGeneration = beginProxyStartupAttempt();
   const doRestart = async () => {
     if (oldHandle) {
       try {
@@ -990,9 +1050,13 @@ function restartProxyForChainSwitch(api: OpenClawPluginApi): void {
     }
     // Brief pause so the OS releases the port before we re-bind
     await new Promise((r) => setTimeout(r, 300));
-    await startProxyInBackground(api);
+    if (!isProxyStartupCurrent(restartGeneration)) return;
+    await startProxyInBackground(api, restartGeneration);
   };
   doRestart().catch((err) => {
+    if (isProxyStartupCurrent(restartGeneration)) {
+      resetProxyStartupState();
+    }
     api.logger.error(
       `Failed to restart proxy after chain switch: ${err instanceof Error ? err.message : String(err)}`,
     );
@@ -1307,7 +1371,7 @@ const plugin: OpenClawPluginDefinition = {
     // Provider/command/tool registration is idempotent — safe to repeat so the
     // LAST loaded plugin (the correct one) wins.  Only proxy startup must be guarded
     // to avoid EADDRINUSE.
-    const proc = process as NodeJS.Process & { __clawrouterProxyStarted?: boolean };
+    const proc = process as ProcessWithClawRouterState;
     const proxyAlreadyStarted = !!proc.__clawrouterProxyStarted;
 
     // Skip heavy initialization in completion mode — only completion script is needed
@@ -1471,6 +1535,7 @@ const plugin: OpenClawPluginDefinition = {
           }
           activeProxyHandle = null;
         }
+        resetProxyStartupState();
       },
     });
 
@@ -1542,12 +1607,7 @@ const plugin: OpenClawPluginDefinition = {
 
     // If we have a pending deferred start from a prior call, cancel it — this
     // call (with potentially populated pluginConfig) takes over.
-    const procDeferred = proc as typeof proc & {
-      __clawrouterDeferredStartTimer?: ReturnType<typeof setTimeout>;
-    };
-    if (procDeferred.__clawrouterDeferredStartTimer) {
-      clearTimeout(procDeferred.__clawrouterDeferredStartTimer);
-      procDeferred.__clawrouterDeferredStartTimer = undefined;
+    if (clearDeferredProxyStartTimer(proc)) {
       api.logger.info("Superseding earlier deferred proxy start — using current pluginConfig");
     }
 
@@ -1557,18 +1617,18 @@ const plugin: OpenClawPluginDefinition = {
       api.logger.info(
         "pluginConfig empty — deferring proxy startup 250ms in case a populated config arrives",
       );
-      procDeferred.__clawrouterDeferredStartTimer = setTimeout(() => {
-        procDeferred.__clawrouterDeferredStartTimer = undefined;
+      proc.__clawrouterDeferredStartTimer = setTimeout(() => {
+        proc.__clawrouterDeferredStartTimer = undefined;
         if (proc.__clawrouterProxyStarted) return;
-        proc.__clawrouterProxyStarted = true;
+        const startupGeneration = beginProxyStartupAttempt(proc);
         api.logger.info("Deferred timer fired — starting proxy with default config");
-        startProxyAfterPortProbe(api);
+        startProxyAfterPortProbe(api, startupGeneration);
       }, 250);
       return;
     }
 
-    proc.__clawrouterProxyStarted = true;
-    startProxyAfterPortProbe(api);
+    const startupGeneration = beginProxyStartupAttempt(proc);
+    startProxyAfterPortProbe(api, startupGeneration);
   },
 
   /**
@@ -1582,6 +1642,7 @@ const plugin: OpenClawPluginDefinition = {
       activeProxyHandle.close().catch(() => {});
       activeProxyHandle = null;
     }
+    resetProxyStartupState();
 
     // 2. Clean openclaw.json — remove provider, plugin entries, model allowlist
     try {

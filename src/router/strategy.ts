@@ -90,13 +90,19 @@ export class RulesStrategy implements RouterStrategy {
     let profileSuffix: string;
     let profile: RoutingDecision["profile"];
 
-    if (routingProfile === "eco" && config.ecoTiers) {
-      tierConfigs = config.ecoTiers;
-      profileSuffix = " | eco";
+    if (routingProfile === "eco") {
+      // `ecoTiers: null` explicitly disables the special eco tier set while
+      // keeping eco routing semantics. Fall back to regular tiers instead of
+      // dropping into auto routing (which could select agentic tiers).
+      tierConfigs = config.ecoTiers ?? config.tiers;
+      profileSuffix = config.ecoTiers ? " | eco" : " | eco (default tiers)";
       profile = "eco";
-    } else if (routingProfile === "premium" && config.premiumTiers) {
-      tierConfigs = config.premiumTiers;
-      profileSuffix = " | premium";
+    } else if (routingProfile === "premium") {
+      // `premiumTiers: null` disables the premium-specific tier set but the
+      // request is still a premium-profile request, so use regular tiers while
+      // preserving premium metadata/cost semantics.
+      tierConfigs = config.premiumTiers ?? config.tiers;
+      profileSuffix = config.premiumTiers ? " | premium" : " | premium (default tiers)";
       profile = "premium";
     } else {
       // Auto profile (or undefined): intelligent routing with agentic detection.
