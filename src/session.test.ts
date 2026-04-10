@@ -93,6 +93,29 @@ describe("SessionStore.setSession", () => {
     expect(entry?.strikes).toBe(0);
     expect(entry?.escalated).toBe(false);
   });
+
+  it("marks session as user-explicit when userExplicit=true", () => {
+    const store = new SessionStore();
+    store.setSession("s1", "free/glm-4.7", "MEDIUM", true);
+    expect(store.getSession("s1")?.userExplicit).toBe(true);
+  });
+
+  it("does not mark session as user-explicit when userExplicit is false/omitted", () => {
+    const store = new SessionStore();
+    store.setSession("s1", "auto-routed-model", "MEDIUM");
+    expect(store.getSession("s1")?.userExplicit).toBeFalsy();
+  });
+
+  it("preserves user-explicit flag across subsequent auto-routed setSession calls", () => {
+    const store = new SessionStore();
+    // User explicitly chose GLM
+    store.setSession("s1", "free/glm-4.7", "MEDIUM", true);
+    expect(store.getSession("s1")?.userExplicit).toBe(true);
+
+    // Subsequent auto-routed call (e.g. fallback) should NOT clear the explicit flag
+    store.setSession("s1", "free/glm-4.7", "MEDIUM");
+    expect(store.getSession("s1")?.userExplicit).toBe(true);
+  });
 });
 
 describe("SessionStore.recordRequestHash", () => {

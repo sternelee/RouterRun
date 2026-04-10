@@ -3343,6 +3343,24 @@ async function proxyRequest(
           bodyModified = true;
         }
         modelId = resolvedModel;
+
+        // User explicitly chose this model — pin it to the session as a sticky
+        // user-explicit pin. Future requests in the same session that come in
+        // as routing profiles (e.g. blockrun/auto from OpenClaw's default
+        // chat path) will respect this choice instead of re-routing.
+        // This fixes the bug where /model in OpenClaw appeared to switch the
+        // model (UI confirmed) but subsequent messages still used the
+        // previously pinned auto-routed model.
+        const explicitPinSessionId =
+          getSessionId(req.headers as Record<string, string | string[] | undefined>) ??
+          deriveSessionId(parsedMessages);
+        if (explicitPinSessionId) {
+          // Use a generic tier — the explicit pin bypasses tier comparison anyway.
+          sessionStore.setSession(explicitPinSessionId, resolvedModel, "MEDIUM", true);
+          console.log(
+            `[ClawRouter] Session ${explicitPinSessionId.slice(0, 8)}... user-explicit pin set: ${resolvedModel}`,
+          );
+        }
       }
 
       // Handle routing profiles (free/eco/auto/premium)
@@ -3411,98 +3429,129 @@ async function proxyRequest(
           }
 
           if (existingSession) {
-            // Never downgrade: only upgrade the session when the current request needs a higher
-            // tier. This fixes the OpenClaw startup-message bias (the startup message always
-            // scores low-complexity, which previously pinned all subsequent real queries to a
-            // cheap model) while still preventing mid-task model switching on simple follow-ups.
-            const tierRank: Record<string, number> = {
-              SIMPLE: 0,
-              MEDIUM: 1,
-              COMPLEX: 2,
-              REASONING: 3,
-            };
-            const existingRank = tierRank[existingSession.tier] ?? 0;
-            const newRank = tierRank[routingDecision.tier] ?? 0;
-
-            if (newRank > existingRank) {
-              // Current request needs higher capability — upgrade the session
+            // If the session was pinned by an explicit user choice (e.g. via
+            // /model command), respect it unconditionally. The user's intent
+            // wins over auto-routing tier escalation. This fixes the bug where
+            // running /model blockrun/free/glm-4.7 didn't actually switch the
+            // model, because the next request (which OpenClaw still sends as
+            // a routing profile) would re-route through tier comparison.
+            //
+            // We override the routing decision and let execution fall through
+            // to the upstream call below — without this short-circuit, the
+            // tier-rank logic could downgrade or escalate away from the
+            // user's choice.
+            if (existingSession.userExplicit) {
               console.log(
-                `[ClawRouter] Session ${effectiveSessionId?.slice(0, 8)}... upgrading: ${existingSession.tier} → ${routingDecision.tier} (${routingDecision.model})`,
-              );
-              parsed.model = routingDecision.model;
-              modelId = routingDecision.model;
-              bodyModified = true;
-              if (effectiveSessionId) {
-                sessionStore.setSession(
-                  effectiveSessionId,
-                  routingDecision.model,
-                  routingDecision.tier,
-                );
-              }
-            } else if (routingDecision.tier === "SIMPLE") {
-              // SIMPLE follow-up in an active session: let it use cheap routing.
-              // e.g. "你好" or "thanks" after a complex task should not inherit the
-              // expensive session model or recount all context tokens on a paid model.
-              console.log(
-                `[ClawRouter] Session ${effectiveSessionId?.slice(0, 8)}... SIMPLE follow-up, using cheap model: ${routingDecision.model} (bypassing pinned ${existingSession.tier})`,
-              );
-              parsed.model = routingDecision.model;
-              modelId = routingDecision.model;
-              bodyModified = true;
-              sessionStore.touchSession(effectiveSessionId!);
-              // routingDecision already reflects cheap model — no override needed
-            } else {
-              // Keep existing higher-tier model (prevent downgrade mid-task)
-              console.log(
-                `[ClawRouter] Session ${effectiveSessionId?.slice(0, 8)}... keeping pinned model: ${existingSession.model} (${existingSession.tier} >= ${routingDecision.tier})`,
+                `[ClawRouter] Session ${effectiveSessionId?.slice(0, 8)}... user-explicit pin: ${existingSession.model} (overriding auto-routed ${routingDecision.tier} → ${routingDecision.model})`,
               );
               parsed.model = existingSession.model;
               modelId = existingSession.model;
               bodyModified = true;
               sessionStore.touchSession(effectiveSessionId!);
-              // Reflect the actual model used in the routing decision for logging/fallback
               routingDecision = {
                 ...routingDecision,
                 model: existingSession.model,
                 tier: existingSession.tier as Tier,
               };
-            }
+              options.onRouted?.(routingDecision);
+              // Skip the rest of the existingSession branches; explicit pin wins.
+            } else {
+              // Never downgrade: only upgrade the session when the current request needs a higher
+              // tier. This fixes the OpenClaw startup-message bias (the startup message always
+              // scores low-complexity, which previously pinned all subsequent real queries to a
+              // cheap model) while still preventing mid-task model switching on simple follow-ups.
+              const tierRank: Record<string, number> = {
+                SIMPLE: 0,
+                MEDIUM: 1,
+                COMPLEX: 2,
+                REASONING: 3,
+              };
+              const existingRank = tierRank[existingSession.tier] ?? 0;
+              const newRank = tierRank[routingDecision.tier] ?? 0;
 
-            // --- Three-strike escalation: detect repetitive request patterns ---
-            const lastAssistantMsg = [...parsedMessages]
-              .reverse()
-              .find((m) => m.role === "assistant");
-            const assistantToolCalls = (
-              lastAssistantMsg as { tool_calls?: Array<{ function?: { name?: string } }> }
-            )?.tool_calls;
-            const toolCallNames = Array.isArray(assistantToolCalls)
-              ? assistantToolCalls
-                  .map((tc) => tc.function?.name)
-                  .filter((n): n is string => Boolean(n))
-              : undefined;
-            const contentHash = hashRequestContent(prompt, toolCallNames);
-            const shouldEscalate = sessionStore.recordRequestHash(effectiveSessionId!, contentHash);
-
-            if (shouldEscalate) {
-              const activeTierConfigs = routingDecision.tierConfigs ?? routerOpts.config.tiers;
-
-              const escalation = sessionStore.escalateSession(
-                effectiveSessionId!,
-                activeTierConfigs,
-              );
-              if (escalation) {
+              if (newRank > existingRank) {
+                // Current request needs higher capability — upgrade the session
                 console.log(
-                  `[ClawRouter] ⚡ 3-strike escalation: ${existingSession.model} → ${escalation.model} (${existingSession.tier} → ${escalation.tier})`,
+                  `[ClawRouter] Session ${effectiveSessionId?.slice(0, 8)}... upgrading: ${existingSession.tier} → ${routingDecision.tier} (${routingDecision.model})`,
                 );
-                parsed.model = escalation.model;
-                modelId = escalation.model;
+                parsed.model = routingDecision.model;
+                modelId = routingDecision.model;
+                bodyModified = true;
+                if (effectiveSessionId) {
+                  sessionStore.setSession(
+                    effectiveSessionId,
+                    routingDecision.model,
+                    routingDecision.tier,
+                  );
+                }
+              } else if (routingDecision.tier === "SIMPLE") {
+                // SIMPLE follow-up in an active session: let it use cheap routing.
+                // e.g. "你好" or "thanks" after a complex task should not inherit the
+                // expensive session model or recount all context tokens on a paid model.
+                console.log(
+                  `[ClawRouter] Session ${effectiveSessionId?.slice(0, 8)}... SIMPLE follow-up, using cheap model: ${routingDecision.model} (bypassing pinned ${existingSession.tier})`,
+                );
+                parsed.model = routingDecision.model;
+                modelId = routingDecision.model;
+                bodyModified = true;
+                sessionStore.touchSession(effectiveSessionId!);
+                // routingDecision already reflects cheap model — no override needed
+              } else {
+                // Keep existing higher-tier model (prevent downgrade mid-task)
+                console.log(
+                  `[ClawRouter] Session ${effectiveSessionId?.slice(0, 8)}... keeping pinned model: ${existingSession.model} (${existingSession.tier} >= ${routingDecision.tier})`,
+                );
+                parsed.model = existingSession.model;
+                modelId = existingSession.model;
+                bodyModified = true;
+                sessionStore.touchSession(effectiveSessionId!);
+                // Reflect the actual model used in the routing decision for logging/fallback
                 routingDecision = {
                   ...routingDecision,
-                  model: escalation.model,
-                  tier: escalation.tier as Tier,
+                  model: existingSession.model,
+                  tier: existingSession.tier as Tier,
                 };
               }
-            }
+
+              // --- Three-strike escalation: detect repetitive request patterns ---
+              const lastAssistantMsg = [...parsedMessages]
+                .reverse()
+                .find((m) => m.role === "assistant");
+              const assistantToolCalls = (
+                lastAssistantMsg as { tool_calls?: Array<{ function?: { name?: string } }> }
+              )?.tool_calls;
+              const toolCallNames = Array.isArray(assistantToolCalls)
+                ? assistantToolCalls
+                    .map((tc) => tc.function?.name)
+                    .filter((n): n is string => Boolean(n))
+                : undefined;
+              const contentHash = hashRequestContent(prompt, toolCallNames);
+              const shouldEscalate = sessionStore.recordRequestHash(
+                effectiveSessionId!,
+                contentHash,
+              );
+
+              if (shouldEscalate) {
+                const activeTierConfigs = routingDecision.tierConfigs ?? routerOpts.config.tiers;
+
+                const escalation = sessionStore.escalateSession(
+                  effectiveSessionId!,
+                  activeTierConfigs,
+                );
+                if (escalation) {
+                  console.log(
+                    `[ClawRouter] ⚡ 3-strike escalation: ${existingSession.model} → ${escalation.model} (${existingSession.tier} → ${escalation.tier})`,
+                  );
+                  parsed.model = escalation.model;
+                  modelId = escalation.model;
+                  routingDecision = {
+                    ...routingDecision,
+                    model: escalation.model,
+                    tier: escalation.tier as Tier,
+                  };
+                }
+              }
+            } // close `else` (auto-routed branch)
           } else {
             // No session — pin this routing decision for future requests
             parsed.model = routingDecision.model;

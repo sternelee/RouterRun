@@ -14,6 +14,13 @@ export type SessionEntry = {
   createdAt: number;
   lastUsedAt: number;
   requestCount: number;
+  /**
+   * `true` when the user explicitly chose this model (e.g. /model command in
+   * OpenClaw or sending an explicit non-profile model in the request body).
+   * Explicit pins are sticky — they're NOT overridden by tier escalation when
+   * a future routing-profile request comes in. The user's intent wins.
+   */
+  userExplicit?: boolean;
   // --- Three-strike escalation ---
   recentHashes: string[]; // Sliding window of last 3 request content fingerprints
   strikes: number; // Consecutive similar request count
@@ -79,8 +86,14 @@ export class SessionStore {
 
   /**
    * Pin a model to a session.
+   *
+   * Pass `userExplicit: true` when the user explicitly chose this model
+   * (e.g. via /model command or by sending an explicit non-profile model).
+   * Explicit pins are sticky — they survive tier-escalation comparisons so
+   * that the user's choice keeps winning even if subsequent requests use a
+   * routing profile that would normally re-route.
    */
-  setSession(sessionId: string, model: string, tier: string): void {
+  setSession(sessionId: string, model: string, tier: string, userExplicit?: boolean): void {
     if (!this.config.enabled || !sessionId) {
       return;
     }
@@ -96,6 +109,11 @@ export class SessionStore {
         existing.model = model;
         existing.tier = tier;
       }
+      // Promote to explicit if the latest call upgraded it; do not silently
+      // demote an existing explicit pin to auto-routed.
+      if (userExplicit) {
+        existing.userExplicit = true;
+      }
     } else {
       this.sessions.set(sessionId, {
         model,
@@ -103,6 +121,7 @@ export class SessionStore {
         createdAt: now,
         lastUsedAt: now,
         requestCount: 1,
+        userExplicit: userExplicit || undefined,
         recentHashes: [],
         strikes: 0,
         escalated: false,
