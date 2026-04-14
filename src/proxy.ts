@@ -4403,10 +4403,7 @@ async function proxyRequest(
         if (!globalController.signal.aborted) {
           const retryController = new AbortController();
           const retryTimeoutId = setTimeout(() => retryController.abort(), PER_MODEL_TIMEOUT_MS);
-          const retrySignal = AbortSignal.any([
-            globalController.signal,
-            retryController.signal,
-          ]);
+          const retrySignal = AbortSignal.any([globalController.signal, retryController.signal]);
           const retryResult = await tryModelRequest(
             upstreamUrl,
             req.method ?? "POST",

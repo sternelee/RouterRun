@@ -157,12 +157,7 @@ describe("proxy session pinning", () => {
     const followupRes = await postChat(proxy, sessionId, "blockrun/auto", "another follow-up");
     expect(followupRes.status).toBe(200);
 
-    expect(receivedModels).toEqual([
-      EXPLICIT_MODEL,
-      EXPLICIT_MODEL,
-      AUTO_PRIMARY,
-      EXPLICIT_MODEL,
-    ]);
+    expect(receivedModels).toEqual([EXPLICIT_MODEL, EXPLICIT_MODEL, AUTO_PRIMARY, EXPLICIT_MODEL]);
   });
 
   it("emits onRouted once when reusing a user-explicit session pin", async () => {
