@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="assets/banner.png" alt="XClawRouter Banner" width="600">
-
 <h1>The LLM router built for autonomous agents</h1>
 
 <p>Agents can't sign up for accounts. Agents can't enter credit cards.<br>
