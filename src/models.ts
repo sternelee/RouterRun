@@ -62,11 +62,13 @@ export const MODEL_ALIASES: Record<string, string> = {
   "deepseek-chat": "deepseek/deepseek-chat",
   reasoner: "deepseek/deepseek-reasoner",
 
-  // Kimi / Moonshot — nvidia-hosted is more reliable than moonshot direct API
-  kimi: "nvidia/kimi-k2.5",
-  moonshot: "nvidia/kimi-k2.5",
-  "kimi-k2.5": "nvidia/kimi-k2.5",
-  "moonshot/kimi-k2.5": "nvidia/kimi-k2.5",
+  // Kimi / Moonshot — nvidia/kimi-k2.5 was retired 2026-04-21 (slow hosting).
+  // Backend aliases nvidia/kimi-k2.5 -> moonshot/kimi-k2.5 (same model, Moonshot SLA).
+  kimi: "moonshot/kimi-k2.5",
+  moonshot: "moonshot/kimi-k2.5",
+  "kimi-k2.5": "moonshot/kimi-k2.5",
+  "kimi-k2.6": "moonshot/kimi-k2.6",
+  "nvidia/kimi-k2.5": "moonshot/kimi-k2.5",
 
   // Google
   gemini: "google/gemini-2.5-pro",
@@ -91,32 +93,37 @@ export const MODEL_ALIASES: Record<string, string> = {
   "gpt-20b": "free/gpt-oss-20b",
   "nvidia/gpt-oss-120b": "free/gpt-oss-120b",
   "nvidia/gpt-oss-20b": "free/gpt-oss-20b",
-  "nvidia/nemotron-ultra-253b": "free/nemotron-ultra-253b",
-  "nvidia/nemotron-3-super-120b": "free/nemotron-3-super-120b",
-  "nvidia/nemotron-super-49b": "free/nemotron-super-49b",
+  "nvidia/nemotron-ultra-253b": "free/qwen3-next-80b-a3b-thinking", // retired 2026-04-21
+  "nvidia/nemotron-3-super-120b": "free/qwen3-next-80b-a3b-thinking", // retired 2026-04-21
+  "nvidia/nemotron-super-49b": "free/qwen3-next-80b-a3b-thinking", // retired 2026-04-21
   "nvidia/deepseek-v3.2": "free/deepseek-v3.2",
-  "nvidia/mistral-large-3-675b": "free/mistral-large-3-675b",
+  "nvidia/mistral-large-3-675b": "free/mistral-small-4-119b", // retired 2026-04-21
   "nvidia/qwen3-coder-480b": "free/qwen3-coder-480b",
-  "nvidia/devstral-2-123b": "free/devstral-2-123b",
+  "nvidia/devstral-2-123b": "free/qwen3-coder-480b", // retired 2026-04-21
   "nvidia/glm-4.7": "free/glm-4.7",
   "nvidia/llama-4-maverick": "free/llama-4-maverick",
+  "nvidia/qwen3-next-80b-a3b-thinking": "free/qwen3-next-80b-a3b-thinking",
+  "nvidia/mistral-small-4-119b": "free/mistral-small-4-119b",
   // Free model shorthand aliases
   "deepseek-free": "free/deepseek-v3.2",
-  "mistral-free": "free/mistral-large-3-675b",
+  "mistral-free": "free/mistral-small-4-119b", // was mistral-large-3-675b (retired)
   "glm-free": "free/glm-4.7",
   "llama-free": "free/llama-4-maverick",
-  nemotron: "free/nemotron-ultra-253b",
-  "nemotron-ultra": "free/nemotron-ultra-253b",
-  "nemotron-253b": "free/nemotron-ultra-253b",
-  "nemotron-super": "free/nemotron-super-49b",
-  "nemotron-49b": "free/nemotron-super-49b",
-  "nemotron-120b": "free/nemotron-3-super-120b",
-  devstral: "free/devstral-2-123b",
-  "devstral-2": "free/devstral-2-123b",
+  nemotron: "free/qwen3-next-80b-a3b-thinking", // nemotron family retired; qwen3-next is the successor flagship
+  "nemotron-ultra": "free/qwen3-next-80b-a3b-thinking",
+  "nemotron-253b": "free/qwen3-next-80b-a3b-thinking",
+  "nemotron-super": "free/qwen3-next-80b-a3b-thinking",
+  "nemotron-49b": "free/qwen3-next-80b-a3b-thinking",
+  "nemotron-120b": "free/qwen3-next-80b-a3b-thinking",
+  devstral: "free/qwen3-coder-480b", // devstral-2 retired; qwen3-coder is the coding successor
+  "devstral-2": "free/qwen3-coder-480b",
   "qwen-coder": "free/qwen3-coder-480b",
   "qwen-coder-free": "free/qwen3-coder-480b",
+  "qwen-next": "free/qwen3-next-80b-a3b-thinking",
+  "qwen3-next": "free/qwen3-next-80b-a3b-thinking",
+  "mistral-small-free": "free/mistral-small-4-119b",
   maverick: "free/llama-4-maverick",
-  free: "free/nemotron-ultra-253b",
+  free: "free/qwen3-next-80b-a3b-thinking", // was nemotron-ultra-253b (retired)
 
   // MiniMax
   minimax: "minimax/minimax-m2.7",
@@ -238,7 +245,7 @@ export const BLOCKRUN_MODELS: BlockRunModel[] = [
   },
   {
     id: "free",
-    name: "Free → Nemotron Ultra 253B",
+    name: "Free → Qwen3-Next 80B Thinking",
     inputPrice: 0,
     outputPrice: 0,
     contextWindow: 131_072,
@@ -812,33 +819,39 @@ export const BLOCKRUN_MODELS: BlockRunModel[] = [
   },
   {
     id: "free/nemotron-ultra-253b",
-    name: "[Free] Nemotron Ultra 253B",
+    name: "[Free] Nemotron Ultra 253B (retired)",
     version: "253b",
     inputPrice: 0,
     outputPrice: 0,
     contextWindow: 131072,
     maxOutput: 16384,
     reasoning: true,
+    deprecated: true,
+    fallbackModel: "free/qwen3-next-80b-a3b-thinking",
   },
   {
     id: "free/nemotron-3-super-120b",
-    name: "[Free] Nemotron 3 Super 120B",
+    name: "[Free] Nemotron 3 Super 120B (retired)",
     version: "3-super-120b",
     inputPrice: 0,
     outputPrice: 0,
     contextWindow: 131072,
     maxOutput: 16384,
     reasoning: true,
+    deprecated: true,
+    fallbackModel: "free/qwen3-next-80b-a3b-thinking",
   },
   {
     id: "free/nemotron-super-49b",
-    name: "[Free] Nemotron Super 49B",
+    name: "[Free] Nemotron Super 49B (retired)",
     version: "super-49b",
     inputPrice: 0,
     outputPrice: 0,
     contextWindow: 131072,
     maxOutput: 16384,
     reasoning: true,
+    deprecated: true,
+    fallbackModel: "free/qwen3-next-80b-a3b-thinking",
   },
   {
     id: "free/deepseek-v3.2",
@@ -852,13 +865,15 @@ export const BLOCKRUN_MODELS: BlockRunModel[] = [
   },
   {
     id: "free/mistral-large-3-675b",
-    name: "[Free] Mistral Large 675B",
+    name: "[Free] Mistral Large 675B (retired)",
     version: "3-675b",
     inputPrice: 0,
     outputPrice: 0,
     contextWindow: 131072,
     maxOutput: 16384,
     reasoning: true,
+    deprecated: true,
+    fallbackModel: "free/mistral-small-4-119b",
   },
   {
     id: "free/qwen3-coder-480b",
@@ -871,12 +886,14 @@ export const BLOCKRUN_MODELS: BlockRunModel[] = [
   },
   {
     id: "free/devstral-2-123b",
-    name: "[Free] Devstral 2 123B",
+    name: "[Free] Devstral 2 123B (retired)",
     version: "2-123b",
     inputPrice: 0,
     outputPrice: 0,
     contextWindow: 131072,
     maxOutput: 16384,
+    deprecated: true,
+    fallbackModel: "free/qwen3-coder-480b",
   },
   {
     id: "free/glm-4.7",
@@ -897,6 +914,25 @@ export const BLOCKRUN_MODELS: BlockRunModel[] = [
     contextWindow: 131072,
     maxOutput: 16384,
     reasoning: true,
+  },
+  {
+    id: "free/qwen3-next-80b-a3b-thinking",
+    name: "[Free] Qwen3-Next 80B Thinking",
+    version: "80b-a3b",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
+    reasoning: true,
+  },
+  {
+    id: "free/mistral-small-4-119b",
+    name: "[Free] Mistral Small 4 119B",
+    version: "4-119b",
+    inputPrice: 0,
+    outputPrice: 0,
+    contextWindow: 131072,
+    maxOutput: 16384,
   },
 
   // Z.AI GLM-5 Models

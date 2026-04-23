@@ -4,6 +4,22 @@ All notable changes to XClawRouter.
 
 ---
 
+## 2026-04-22 — NVIDIA free-tier refresh (sync with mainline backend)
+
+- **Retired NVIDIA models** deprecated in `BLOCKRUN_MODELS` with `fallbackModel` wired so the resolver routes through to a successor:
+  - `free/nemotron-ultra-253b` → `free/qwen3-next-80b-a3b-thinking`
+  - `free/nemotron-3-super-120b` → `free/qwen3-next-80b-a3b-thinking`
+  - `free/nemotron-super-49b` → `free/qwen3-next-80b-a3b-thinking`
+  - `free/mistral-large-3-675b` → `free/mistral-small-4-119b`
+  - `free/devstral-2-123b` → `free/qwen3-coder-480b`
+- **Two new free models registered**: `free/qwen3-next-80b-a3b-thinking` (116 tok/s reasoning flagship), `free/mistral-small-4-119b` (114 tok/s fastest chat).
+- **Kimi alias flip**: `kimi`, `moonshot`, `kimi-k2.5`, `moonshot/kimi-k2.5` all now resolve to `moonshot/kimi-k2.5` (direct). `nvidia/kimi-k2.5` was retired — nvidia-hosted path kept as an alias redirect so legacy callers don't break. Added `kimi-k2.6` alias.
+- **`free` meta-model** renamed from "Free → Nemotron Ultra 253B" to "Free → Qwen3-Next 80B Thinking".
+- **Alias shorthand cleanup**: `nemotron*`, `devstral*`, `mistral-free` now point at successors, not retired IDs. Added `qwen-next`, `qwen3-next`, `mistral-small-free` shorthands.
+- **Router config** (`src/router/config.ts`): 7 `nvidia/kimi-k2.5` references swapped to `moonshot/kimi-k2.5` (runtime-equivalent via alias resolver, but keeps the config honest).
+
+---
+
 ## v0.12.89 — Mar 30, 2026
 
 - **Predexon tools registered** — 8 Predexon endpoints now registered as real OpenClaw tools (`blockrun_predexon_events`, `blockrun_predexon_leaderboard`, `blockrun_predexon_markets`, `blockrun_predexon_smart_money`, `blockrun_predexon_smart_activity`, `blockrun_predexon_wallet`, `blockrun_predexon_wallet_pnl`, `blockrun_predexon_matching_markets`). Agent will now call these directly instead of falling back to browser scraping.
