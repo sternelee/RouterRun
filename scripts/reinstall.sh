@@ -563,6 +563,7 @@ node -e "
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
+const topModelsPath = '$SCRIPT_DIR/../src/top-models.json';
 function atomicWrite(filePath, data) {
   const tmpPath = filePath + '.tmp.' + process.pid;
   fs.writeFileSync(tmpPath, data);
@@ -591,22 +592,10 @@ try {
     changed = true;
   }
 
-  // Curated models for the /model picker
-  const TOP_MODELS = [
-    'auto', 'free', 'eco', 'premium',
-    'anthropic/claude-sonnet-4.6', 'anthropic/claude-opus-4.7', 'anthropic/claude-opus-4.6', 'anthropic/claude-opus-4.5', 'anthropic/claude-haiku-4.5',
-    'openai/gpt-5.5', 'openai/gpt-5.4', 'openai/gpt-5.4-mini', 'openai/gpt-5.4-pro', 'openai/gpt-5.3', 'openai/gpt-5.3-codex',
-    'openai/gpt-5-mini', 'openai/gpt-5-nano', 'openai/gpt-5.4-nano', 'openai/gpt-4o', 'openai/gpt-4o-mini', 'openai/o3', 'openai/o4-mini',
-    'google/gemini-3.1-pro', 'google/gemini-3.1-flash-lite', 'google/gemini-3-pro-preview', 'google/gemini-3-flash-preview',
-    'google/gemini-2.5-pro', 'google/gemini-2.5-flash', 'google/gemini-2.5-flash-lite',
-    'deepseek/deepseek-chat', 'deepseek/deepseek-reasoner', 'moonshot/kimi-k2.6', 'moonshot/kimi-k2.5',
-    'xai/grok-3', 'xai/grok-4-0709', 'xai/grok-4-1-fast-reasoning',
-    'minimax/minimax-m2.7',
-    'free/gpt-oss-120b', 'free/gpt-oss-20b', 'free/deepseek-v3.2',
-    'free/qwen3-coder-480b', 'free/llama-4-maverick', 'free/glm-4.7',
-    'free/qwen3-next-80b-a3b-thinking', 'free/mistral-small-4-119b',
-    'zai/glm-5.1', 'zai/glm-5', 'zai/glm-5-turbo'
-  ];
+  const TOP_MODELS = JSON.parse(fs.readFileSync(topModelsPath, 'utf8'));
+  if (!Array.isArray(TOP_MODELS)) {
+    throw new Error('src/top-models.json must contain an array');
+  }
 
   if (!config.agents) config.agents = {};
   if (!config.agents.defaults) config.agents.defaults = {};

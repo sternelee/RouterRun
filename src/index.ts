@@ -74,6 +74,7 @@ import {
 } from "node:fs";
 import { readFile as readFileAsync } from "node:fs/promises";
 import { readTextFileSync } from "./fs-read.js";
+import { TOP_MODELS } from "./top-models.js";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -367,45 +368,10 @@ function injectModelsConfig(logger: { info: (msg: string) => void }): void {
     needsWrite = true;
   }
 
-  // Populate agents.defaults.models (the allowlist) with top BlockRun models.
+  // Populate agents.defaults.models (the allowlist) with the shared curated
+  // BlockRun model list used by install/update scripts too.
   // OpenClaw uses this as a whitelist — only listed models appear in the /model picker.
   // Existing non-blockrun entries are preserved (e.g. from other providers).
-  const TOP_MODELS = [
-    "auto",
-    "free",
-    "eco",
-    "premium",
-    "anthropic/claude-sonnet-4.6",
-    "anthropic/claude-opus-4.7",
-    "anthropic/claude-opus-4.6",
-    "anthropic/claude-opus-4.5",
-    "anthropic/claude-haiku-4.5",
-    "openai/gpt-5.5",
-    "openai/gpt-5.4",
-    "openai/gpt-5.3",
-    "openai/gpt-5.3-codex",
-    "openai/gpt-4o",
-    "openai/o3",
-    "google/gemini-3.1-pro",
-    "google/gemini-3-flash-preview",
-    "deepseek/deepseek-chat",
-    "moonshot/kimi-k2.6",
-    "moonshot/kimi-k2.5",
-    "xai/grok-3",
-    "minimax/minimax-m2.7",
-    // Free models (free/ prefix so users see "free" in picker)
-    "free/gpt-oss-120b",
-    "free/gpt-oss-20b",
-    "free/deepseek-v3.2",
-    "free/qwen3-coder-480b",
-    "free/llama-4-maverick",
-    "free/glm-4.7",
-    "free/qwen3-next-80b-a3b-thinking",
-    "free/mistral-small-4-119b",
-    "zai/glm-5",
-    "zai/glm-5.1",
-    "zai/glm-5-turbo",
-  ];
   if (!defaults.models || typeof defaults.models !== "object" || Array.isArray(defaults.models)) {
     defaults.models = {};
     needsWrite = true;

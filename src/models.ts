@@ -17,6 +17,7 @@ import type { ModelDefinitionConfig, ModelProviderConfig } from "./types.js";
 export const MODEL_ALIASES: Record<string, string> = {
   // Claude - flagship opus is 4.7; sonnet stays at 4.6
   claude: "anthropic/claude-sonnet-4.6",
+  "br-sonnet": "anthropic/claude-sonnet-4.6",
   sonnet: "anthropic/claude-sonnet-4.6",
   "sonnet-4": "anthropic/claude-sonnet-4.6",
   "sonnet-4.6": "anthropic/claude-sonnet-4.6",
@@ -47,7 +48,7 @@ export const MODEL_ALIASES: Record<string, string> = {
   // OpenAI
   gpt: "openai/gpt-4o",
   gpt4: "openai/gpt-4o",
-  gpt5: "openai/gpt-5.4",
+  gpt5: "openai/gpt-5.5",
   "gpt-5.5": "openai/gpt-5.5",
   "gpt-5.4": "openai/gpt-5.4",
   "gpt-5.4-pro": "openai/gpt-5.4-pro",

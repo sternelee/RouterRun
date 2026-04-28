@@ -6,9 +6,14 @@ describe("resolveModelAlias", () => {
   it("maps Claude aliases to current flagship versions", () => {
     // Sonnet → 4.6, Opus → 4.7 (new flagship), Haiku → 4.5
     expect(resolveModelAlias("claude")).toBe("anthropic/claude-sonnet-4.6");
+    expect(resolveModelAlias("br-sonnet")).toBe("anthropic/claude-sonnet-4.6");
     expect(resolveModelAlias("sonnet")).toBe("anthropic/claude-sonnet-4.6");
     expect(resolveModelAlias("opus")).toBe("anthropic/claude-opus-4.7");
     expect(resolveModelAlias("haiku")).toBe("anthropic/claude-haiku-4.5");
+  });
+
+  it("maps gpt5 shorthand to the newest GPT-5 flagship", () => {
+    expect(resolveModelAlias("gpt5")).toBe("openai/gpt-5.5");
   });
 
   it("resolves aliases even when sent with blockrun/ prefix", () => {

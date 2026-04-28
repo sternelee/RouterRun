@@ -92,6 +92,7 @@ import { loadExcludeList } from "./exclude-models.js";
 import { PROXY_PORT } from "./config.js";
 import { SessionJournal } from "./journal.js";
 import { applyUpstreamProxy } from "./upstream-proxy.js";
+import { extractTextualToolCalls } from "./textual-tool-calls.js";
 
 const BLOCKRUN_API = "https://blockrun.ai/api";
 const BLOCKRUN_SOLANA_API = "https://sol.blockrun.ai/api";
@@ -5084,9 +5085,24 @@ async function proxyRequest(
               // finish_reason before exposing the tool_calls array at the same
               // object shape. Tool execution only needs tool_calls, so do not
               // forward that prose to chat channels.
-              const toolCalls = choice.message?.tool_calls ?? choice.delta?.tool_calls;
-              // Strip thinking tokens (Kimi <｜...｜> and standard <think> tags)
+              let toolCalls = choice.message?.tool_calls ?? choice.delta?.tool_calls;
               const rawContent = choice.message?.content ?? choice.delta?.content ?? "";
+
+              // When upstream returns no structured tool_calls but the model emitted
+              // tool calls as XML/text in `content` (e.g. OpenClaw-instructed
+              // `<tool_call><arg_key>...` or Anthropic-style `<function_calls>
+              // <invoke>...`), synthesize the structured form so downstream tool
+              // executors can dispatch them. The agent loops we saw in the wild
+              // (six retries then a hallucinated "API key missing") came from
+              // this gap.
+              if (!endsWithToolCalls && (!toolCalls || toolCalls.length === 0) && rawContent) {
+                const extracted = extractTextualToolCalls(rawContent);
+                if (extracted.toolCalls.length > 0) {
+                  toolCalls = extracted.toolCalls;
+                }
+              }
+
+              // Strip thinking tokens (Kimi <｜...｜> and standard <think> tags)
               const content =
                 endsWithToolCalls || (toolCalls && toolCalls.length > 0)
                   ? ""
@@ -5334,6 +5350,19 @@ async function proxyRequest(
                 message.content = "";
                 changed = true;
               }
+              continue;
+            }
+
+            // Synthesize tool_calls from XML/text formats some models emit in
+            // `content` (OpenClaw `<tool_call><arg_key>...`, Anthropic-style
+            // `<function_calls><invoke>...`). Without this, tool calls land as
+            // plain text and downstream executors can't dispatch them.
+            const extracted = extractTextualToolCalls(message.content);
+            if (extracted.toolCalls.length > 0) {
+              message.tool_calls = extracted.toolCalls;
+              message.content = "";
+              choice.finish_reason = "tool_calls";
+              changed = true;
               continue;
             }
 

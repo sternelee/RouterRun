@@ -391,6 +391,271 @@ describe("tool forwarding", () => {
     expect(json.choices?.[0]?.message?.content).toBe("");
   });
 
+  it("synthesizes tool_calls from OpenClaw <tool_call><arg_key> XML in content (non-streaming)", async () => {
+    upstreamResponse = {
+      id: "chatcmpl-textual-tool-call",
+      object: "chat.completion",
+      created: Math.floor(Date.now() / 1000),
+      model: "openai/gpt-4o",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content:
+              "<tool_call>web_search<arg_key>count</arg_key><arg_value>5</arg_value><arg_key>query</arg_key><arg_value>Alpha Degen YouTube contact email crypto</arg_value></tool_call>",
+          },
+          finish_reason: "stop",
+        },
+      ],
+      usage: { prompt_tokens: 12, completion_tokens: 30, total_tokens: 42 },
+    };
+
+    const res = await fetch(`${proxy.baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "openai/gpt-4o",
+        stream: false,
+        messages: [{ role: "user", content: "Find Alpha Degen contact" }],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "web_search",
+              description: "Search the web",
+              parameters: { type: "object" },
+            },
+          },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as {
+      choices?: Array<{
+        finish_reason?: string | null;
+        message?: {
+          content?: string;
+          tool_calls?: Array<{
+            id?: string;
+            type?: string;
+            function?: { name?: string; arguments?: string };
+          }>;
+        };
+      }>;
+    };
+    expect(json.choices?.[0]?.finish_reason).toBe("tool_calls");
+    expect(json.choices?.[0]?.message?.content).toBe("");
+    const toolCalls = json.choices?.[0]?.message?.tool_calls ?? [];
+    expect(toolCalls).toHaveLength(1);
+    expect(toolCalls[0]?.function?.name).toBe("web_search");
+    const args = JSON.parse(toolCalls[0]!.function!.arguments!) as Record<string, unknown>;
+    expect(args.count).toBe(5);
+    expect(args.query).toBe("Alpha Degen YouTube contact email crypto");
+  });
+
+  it("synthesizes tool_calls from OpenClaw <tool_call><arg_key> XML in content (SSE)", async () => {
+    upstreamResponse = {
+      id: "chatcmpl-textual-tool-call-sse",
+      object: "chat.completion",
+      created: Math.floor(Date.now() / 1000),
+      model: "openai/gpt-4o",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content:
+              "<tool_call>web_search<arg_key>query</arg_key><arg_value>Crypto Cred contact</arg_value></tool_call>",
+          },
+          finish_reason: "stop",
+        },
+      ],
+      usage: { prompt_tokens: 8, completion_tokens: 12, total_tokens: 20 },
+    };
+
+    const res = await fetch(`${proxy.baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "openai/gpt-4o",
+        stream: true,
+        messages: [{ role: "user", content: "Find Crypto Cred contact" }],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "web_search",
+              description: "Search the web",
+              parameters: { type: "object" },
+            },
+          },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+    const text = await res.text();
+
+    const events = text
+      .split("\n\n")
+      .map((block) =>
+        block
+          .split("\n")
+          .filter((line) => line.startsWith("data: "))
+          .map((line) => line.slice(6))
+          .join(""),
+      )
+      .filter((payload) => payload && payload !== "[DONE]");
+
+    const chunks = events
+      .map((payload) => {
+        try {
+          return JSON.parse(payload) as {
+            choices?: Array<{
+              delta?: {
+                content?: string;
+                tool_calls?: Array<{
+                  function?: { name?: string; arguments?: string };
+                }>;
+              };
+              finish_reason?: string | null;
+            }>;
+          };
+        } catch {
+          return null;
+        }
+      })
+      .filter((chunk): chunk is NonNullable<typeof chunk> => chunk !== null);
+
+    // The XML must NOT leak as delta.content
+    const xmlLeak = chunks.some((chunk) =>
+      chunk.choices?.some((choice) =>
+        typeof choice.delta?.content === "string" && choice.delta.content.includes("<tool_call>"),
+      ),
+    );
+    expect(xmlLeak).toBe(false);
+
+    // A tool_calls chunk must be emitted with the synthesized call
+    const toolCallChunks = chunks.flatMap((chunk) =>
+      (chunk.choices ?? []).flatMap((choice) => choice.delta?.tool_calls ?? []),
+    );
+    expect(toolCallChunks).toHaveLength(1);
+    expect(toolCallChunks[0]?.function?.name).toBe("web_search");
+    const args = JSON.parse(toolCallChunks[0]!.function!.arguments!) as Record<string, unknown>;
+    expect(args.query).toBe("Crypto Cred contact");
+
+    // Finish reason must be flipped to tool_calls
+    const finishReasons = chunks.flatMap((chunk) =>
+      (chunk.choices ?? [])
+        .map((choice) => choice.finish_reason)
+        .filter((fr): fr is string => typeof fr === "string"),
+    );
+    expect(finishReasons).toContain("tool_calls");
+  });
+
+  it("synthesizes tool_calls from Anthropic <function_calls><invoke> XML in content", async () => {
+    upstreamResponse = {
+      id: "chatcmpl-anthropic-style",
+      object: "chat.completion",
+      created: Math.floor(Date.now() / 1000),
+      model: "moonshot/kimi-k2.6",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content:
+              '<function_calls>\n<invoke name="web_search">\n<parameter name="query">DeFi Slate hosts</parameter>\n</invoke>\n</function_calls>',
+          },
+          finish_reason: "stop",
+        },
+      ],
+      usage: { prompt_tokens: 8, completion_tokens: 12, total_tokens: 20 },
+    };
+
+    const res = await fetch(`${proxy.baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "moonshot/kimi-k2.6",
+        stream: false,
+        messages: [{ role: "user", content: "Find DeFi Slate hosts" }],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "web_search",
+              description: "Search the web",
+              parameters: { type: "object" },
+            },
+          },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as {
+      choices?: Array<{
+        finish_reason?: string | null;
+        message?: {
+          content?: string;
+          tool_calls?: Array<{
+            function?: { name?: string; arguments?: string };
+          }>;
+        };
+      }>;
+    };
+    expect(json.choices?.[0]?.finish_reason).toBe("tool_calls");
+    expect(json.choices?.[0]?.message?.content).toBe("");
+    const toolCalls = json.choices?.[0]?.message?.tool_calls ?? [];
+    expect(toolCalls).toHaveLength(1);
+    expect(toolCalls[0]?.function?.name).toBe("web_search");
+  });
+
+  it("does not synthesize tool_calls when content has no tool-call XML", async () => {
+    upstreamResponse = {
+      id: "chatcmpl-no-xml",
+      object: "chat.completion",
+      created: Math.floor(Date.now() / 1000),
+      model: "openai/gpt-4o",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: "Plain assistant prose with no tool calls at all.",
+          },
+          finish_reason: "stop",
+        },
+      ],
+      usage: { prompt_tokens: 5, completion_tokens: 10, total_tokens: 15 },
+    };
+
+    const res = await fetch(`${proxy.baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "openai/gpt-4o",
+        stream: false,
+        messages: [{ role: "user", content: "Hi" }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as {
+      choices?: Array<{
+        finish_reason?: string | null;
+        message?: { content?: string; tool_calls?: unknown[] };
+      }>;
+    };
+    expect(json.choices?.[0]?.finish_reason).toBe("stop");
+    expect(json.choices?.[0]?.message?.content).toBe("Plain assistant prose with no tool calls at all.");
+    expect(json.choices?.[0]?.message?.tool_calls ?? []).toHaveLength(0);
+  });
+
   it("suppresses assistant content in SSE chunks when upstream marks finish_reason as tool_calls", async () => {
     upstreamResponse = {
       id: "chatcmpl-tool-finish-reason-sse",

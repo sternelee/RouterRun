@@ -6522,7 +6522,7 @@ function weierstrass(curveDef) {
   function prepSig(msgHash, privateKey, opts = defaultSigOpts) {
     if (["recovered", "canonical"].some((k) => k in opts))
       throw new Error("sign() legacy options not supported");
-    const { hash: hash3, randomBytes: randomBytes3 } = CURVE;
+    const { hash: hash3, randomBytes: randomBytes4 } = CURVE;
     let { lowS, prehash, extraEntropy: ent } = opts;
     if (lowS == null)
       lowS = true;
@@ -6534,7 +6534,7 @@ function weierstrass(curveDef) {
     const d = normPrivateKeyToScalar(privateKey);
     const seedArgs = [int2octets(d), int2octets(h1int)];
     if (ent != null && ent !== false) {
-      const e7 = ent === true ? randomBytes3(Fp.BYTES) : ent;
+      const e7 = ent === true ? randomBytes4(Fp.BYTES) : ent;
       seedArgs.push(ensureBytes("extraEntropy", e7));
     }
     const seed = concatBytes3(...seedArgs);
@@ -15698,7 +15698,7 @@ function ecdsa(Point3, hash3, ecdsaOpts = {}) {
     bits2int_modN: "function"
   });
   ecdsaOpts = Object.assign({}, ecdsaOpts);
-  const randomBytes3 = ecdsaOpts.randomBytes || randomBytes2;
+  const randomBytes4 = ecdsaOpts.randomBytes || randomBytes2;
   const hmac4 = ecdsaOpts.hmac || ((key, msg) => hmac2(hash3, key, msg));
   const { Fp, Fn: Fn2 } = Point3;
   const { ORDER: CURVE_ORDER, BITS: fnBits } = Fn2;
@@ -15840,7 +15840,7 @@ function ecdsa(Point3, hash3, ecdsaOpts = {}) {
       throw new Error("invalid private key");
     const seedArgs = [int2octets(d), int2octets(h1int)];
     if (extraEntropy2 != null && extraEntropy2 !== false) {
-      const e7 = extraEntropy2 === true ? randomBytes3(lengths.secretKey) : extraEntropy2;
+      const e7 = extraEntropy2 === true ? randomBytes4(lengths.secretKey) : extraEntropy2;
       seedArgs.push(abytes4(e7, void 0, "extraEntropy"));
     }
     const seed = concatBytes5(...seedArgs);
@@ -21912,10 +21912,10 @@ async function createKeyPairFromBytes(bytes, extractable = false) {
     ),
     createPrivateKeyFromBytes(bytes.slice(0, 32), extractable)
   ]);
-  const randomBytes3 = new Uint8Array(32);
-  crypto.getRandomValues(randomBytes3);
-  const signedData = await signBytes(privateKey, randomBytes3);
-  const isValid2 = await verifySignature(publicKey, signedData, randomBytes3);
+  const randomBytes4 = new Uint8Array(32);
+  crypto.getRandomValues(randomBytes4);
+  const signedData = await signBytes(privateKey, randomBytes4);
+  const isValid2 = await verifySignature(publicKey, signedData, randomBytes4);
   if (!isValid2) {
     throw new SolanaError(SOLANA_ERROR__KEYS__PUBLIC_KEY_MUST_MATCH_PRIVATE_KEY);
   }
@@ -27986,7 +27986,7 @@ var require_websocket = __commonJS({
     var http2 = __require("http");
     var net = __require("net");
     var tls = __require("tls");
-    var { randomBytes: randomBytes3, createHash: createHash4 } = __require("crypto");
+    var { randomBytes: randomBytes4, createHash: createHash4 } = __require("crypto");
     var { Duplex, Readable } = __require("stream");
     var { URL: URL2 } = __require("url");
     var PerMessageDeflate2 = require_permessage_deflate();
@@ -28516,7 +28516,7 @@ var require_websocket = __commonJS({
         }
       }
       const defaultPort = isSecure ? 443 : 80;
-      const key = randomBytes3(16).toString("base64");
+      const key = randomBytes4(16).toString("base64");
       const request = isSecure ? https.request : http2.request;
       const protocolSet = /* @__PURE__ */ new Set();
       let perMessageDeflate;
@@ -57687,6 +57687,7 @@ var init_client = __esm({
 var MODEL_ALIASES = {
   // Claude - flagship opus is 4.7; sonnet stays at 4.6
   claude: "anthropic/claude-sonnet-4.6",
+  "br-sonnet": "anthropic/claude-sonnet-4.6",
   sonnet: "anthropic/claude-sonnet-4.6",
   "sonnet-4": "anthropic/claude-sonnet-4.6",
   "sonnet-4.6": "anthropic/claude-sonnet-4.6",
@@ -57716,7 +57717,7 @@ var MODEL_ALIASES = {
   // OpenAI
   gpt: "openai/gpt-4o",
   gpt4: "openai/gpt-4o",
-  gpt5: "openai/gpt-5.4",
+  gpt5: "openai/gpt-5.5",
   "gpt-5.5": "openai/gpt-5.5",
   "gpt-5.4": "openai/gpt-5.4",
   "gpt-5.4-pro": "openai/gpt-5.4-pro",
@@ -64405,7 +64406,7 @@ function weierstrass2(curveDef) {
   function prepSig(msgHash, privateKey, opts = defaultSigOpts) {
     if (["recovered", "canonical"].some((k) => k in opts))
       throw new Error("sign() legacy options not supported");
-    const { hash: hash3, randomBytes: randomBytes3 } = CURVE;
+    const { hash: hash3, randomBytes: randomBytes4 } = CURVE;
     let { lowS, prehash, extraEntropy: ent } = opts;
     if (lowS == null)
       lowS = true;
@@ -64417,7 +64418,7 @@ function weierstrass2(curveDef) {
     const d = normPrivateKeyToScalar(privateKey);
     const seedArgs = [int2octets(d), int2octets(h1int)];
     if (ent != null && ent !== false) {
-      const e7 = ent === true ? randomBytes3(Fp.BYTES) : ent;
+      const e7 = ent === true ? randomBytes4(Fp.BYTES) : ent;
       seedArgs.push(ensureBytes2("extraEntropy", e7));
     }
     const seed = concatBytes4(...seedArgs);
@@ -71938,8 +71939,8 @@ function createNonce() {
   return toHex(getCrypto().getRandomValues(new Uint8Array(32)));
 }
 function createPermit2Nonce() {
-  const randomBytes3 = getCrypto().getRandomValues(new Uint8Array(32));
-  return BigInt(toHex(randomBytes3)).toString();
+  const randomBytes4 = getCrypto().getRandomValues(new Uint8Array(32));
+  return BigInt(toHex(randomBytes4)).toString();
 }
 
 // node_modules/@x402/evm/dist/esm/chunk-YUJQ7TLD.mjs
@@ -76526,6 +76527,118 @@ async function applyUpstreamProxy(proxyUrl) {
   return url;
 }
 
+// src/textual-tool-calls.ts
+import { randomBytes as randomBytes3 } from "crypto";
+var OPENCLAW_TOOL_CALL_RE = /<tool_call>([^<]+?)((?:<arg_key>[\s\S]*?<\/arg_key>\s*<arg_value>[\s\S]*?<\/arg_value>\s*)+)<\/tool_call>/g;
+var OPENCLAW_ARG_RE = /<arg_key>([\s\S]*?)<\/arg_key>\s*<arg_value>([\s\S]*?)<\/arg_value>/g;
+var ANTHROPIC_BLOCK_RE = /<function_calls\b[^>]*>([\s\S]*?)<\/function_calls\s*>/g;
+var ANTHROPIC_INVOKE_RE = /<invoke\s+name=["']([^"']+)["'][^>]*>([\s\S]*?)<\/invoke\s*>/g;
+var ANTHROPIC_PARAM_RE = /<parameter\s+name=["']([^"']+)["'][^>]*>([\s\S]*?)<\/parameter\s*>/g;
+function generateId() {
+  return `call_${randomBytes3(12).toString("base64url")}`;
+}
+function coerceValue(raw) {
+  const trimmed = raw.trim();
+  if (trimmed === "") return raw;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return raw;
+  }
+}
+function extractOpenClawCalls(content) {
+  const calls = [];
+  const matches = [];
+  OPENCLAW_TOOL_CALL_RE.lastIndex = 0;
+  let match;
+  while ((match = OPENCLAW_TOOL_CALL_RE.exec(content)) !== null) {
+    const name = match[1]?.trim();
+    if (!name) continue;
+    const argsBlock = match[2] ?? "";
+    const args = {};
+    OPENCLAW_ARG_RE.lastIndex = 0;
+    let argMatch;
+    while ((argMatch = OPENCLAW_ARG_RE.exec(argsBlock)) !== null) {
+      const key = argMatch[1]?.trim();
+      const valueRaw = argMatch[2] ?? "";
+      if (key) {
+        args[key] = coerceValue(valueRaw);
+      }
+    }
+    calls.push({
+      id: generateId(),
+      type: "function",
+      function: { name, arguments: JSON.stringify(args) }
+    });
+    matches.push({ start: match.index, end: match.index + match[0].length });
+  }
+  return { calls, matches };
+}
+function extractAnthropicCalls(content) {
+  const calls = [];
+  const matches = [];
+  ANTHROPIC_BLOCK_RE.lastIndex = 0;
+  let blockMatch;
+  while ((blockMatch = ANTHROPIC_BLOCK_RE.exec(content)) !== null) {
+    const inner = blockMatch[1] ?? "";
+    let invokeFound = false;
+    ANTHROPIC_INVOKE_RE.lastIndex = 0;
+    let invokeMatch;
+    while ((invokeMatch = ANTHROPIC_INVOKE_RE.exec(inner)) !== null) {
+      const name = invokeMatch[1];
+      if (!name) continue;
+      const invokeInner = invokeMatch[2] ?? "";
+      const args = {};
+      ANTHROPIC_PARAM_RE.lastIndex = 0;
+      let paramMatch;
+      while ((paramMatch = ANTHROPIC_PARAM_RE.exec(invokeInner)) !== null) {
+        const key = paramMatch[1];
+        const valueRaw = paramMatch[2] ?? "";
+        if (key) {
+          args[key] = coerceValue(valueRaw);
+        }
+      }
+      calls.push({
+        id: generateId(),
+        type: "function",
+        function: { name, arguments: JSON.stringify(args) }
+      });
+      invokeFound = true;
+    }
+    if (invokeFound) {
+      matches.push({ start: blockMatch.index, end: blockMatch.index + blockMatch[0].length });
+    }
+  }
+  return { calls, matches };
+}
+function stripRanges(content, ranges) {
+  if (ranges.length === 0) return content;
+  const sorted = [...ranges].sort((a, b) => a.start - b.start);
+  let cleaned = "";
+  let cursor = 0;
+  for (const r of sorted) {
+    if (r.start >= cursor) {
+      cleaned += content.slice(cursor, r.start);
+      cursor = r.end;
+    }
+  }
+  cleaned += content.slice(cursor);
+  return cleaned;
+}
+function extractTextualToolCalls(content) {
+  if (!content) {
+    return { toolCalls: [], cleanedContent: "" };
+  }
+  const openClaw = extractOpenClawCalls(content);
+  const anthropic = extractAnthropicCalls(content);
+  const toolCalls = [...openClaw.calls, ...anthropic.calls];
+  if (toolCalls.length === 0) {
+    return { toolCalls: [], cleanedContent: content };
+  }
+  const cleanedContent = stripRanges(content, [...openClaw.matches, ...anthropic.matches]);
+  return { toolCalls, cleanedContent };
+}
+
 // src/proxy.ts
 var paymentStore = new AsyncLocalStorage();
 var BLOCKRUN_API = "https://blockrun.ai/api";
@@ -79916,8 +80029,14 @@ data: [DONE]
           if (rsp.choices && Array.isArray(rsp.choices)) {
             for (const choice of rsp.choices) {
               const endsWithToolCalls = choice.finish_reason === "tool_calls";
-              const toolCalls = choice.message?.tool_calls ?? choice.delta?.tool_calls;
+              let toolCalls = choice.message?.tool_calls ?? choice.delta?.tool_calls;
               const rawContent = choice.message?.content ?? choice.delta?.content ?? "";
+              if (!endsWithToolCalls && (!toolCalls || toolCalls.length === 0) && rawContent) {
+                const extracted = extractTextualToolCalls(rawContent);
+                if (extracted.toolCalls.length > 0) {
+                  toolCalls = extracted.toolCalls;
+                }
+              }
               const content = endsWithToolCalls || toolCalls && toolCalls.length > 0 ? "" : stripThinkingTokens(rawContent);
               const role = choice.message?.role ?? choice.delta?.role ?? "assistant";
               const index2 = choice.index ?? 0;
@@ -80124,6 +80243,14 @@ data: [DONE]
                 message.content = "";
                 changed = true;
               }
+              continue;
+            }
+            const extracted = extractTextualToolCalls(message.content);
+            if (extracted.toolCalls.length > 0) {
+              message.tool_calls = extracted.toolCalls;
+              message.content = "";
+              choice.finish_reason = "tool_calls";
+              changed = true;
               continue;
             }
             const stripped = stripThinkingTokens(message.content);
@@ -80576,6 +80703,70 @@ import {
   renameSync
 } from "fs";
 import { readFile as readFileAsync } from "fs/promises";
+
+// src/top-models.json
+var top_models_default = [
+  "auto",
+  "free",
+  "eco",
+  "premium",
+  "anthropic/claude-sonnet-4.6",
+  "anthropic/claude-opus-4.7",
+  "anthropic/claude-opus-4.6",
+  "anthropic/claude-opus-4.5",
+  "anthropic/claude-haiku-4.5",
+  "openai/gpt-5.5",
+  "openai/gpt-5.4",
+  "openai/gpt-5.4-mini",
+  "openai/gpt-5.4-pro",
+  "openai/gpt-5.3",
+  "openai/gpt-5.3-codex",
+  "openai/gpt-5-mini",
+  "openai/gpt-5-nano",
+  "openai/gpt-5.4-nano",
+  "openai/gpt-4o",
+  "openai/gpt-4o-mini",
+  "openai/o3",
+  "openai/o4-mini",
+  "google/gemini-3.1-pro",
+  "google/gemini-3.1-flash-lite",
+  "google/gemini-3-pro-preview",
+  "google/gemini-3-flash-preview",
+  "google/gemini-2.5-pro",
+  "google/gemini-2.5-flash",
+  "google/gemini-2.5-flash-lite",
+  "deepseek/deepseek-chat",
+  "deepseek/deepseek-reasoner",
+  "moonshot/kimi-k2.6",
+  "moonshot/kimi-k2.5",
+  "xai/grok-3",
+  "xai/grok-4-0709",
+  "xai/grok-4-1-fast-reasoning",
+  "minimax/minimax-m2.7",
+  "free/gpt-oss-120b",
+  "free/gpt-oss-20b",
+  "free/deepseek-v3.2",
+  "free/qwen3-coder-480b",
+  "free/llama-4-maverick",
+  "free/glm-4.7",
+  "free/qwen3-next-80b-a3b-thinking",
+  "free/mistral-small-4-119b",
+  "zai/glm-5.1",
+  "zai/glm-5",
+  "zai/glm-5-turbo"
+];
+
+// src/top-models.ts
+function loadTopModels() {
+  const parsed = top_models_default;
+  if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "string" || !value.trim())) {
+    throw new Error("top-models.json must be a JSON array of non-empty strings");
+  }
+  return [...parsed];
+}
+var TOP_MODELS = Object.freeze(loadTopModels());
+
+// src/index.ts
 import { homedir as homedir7 } from "os";
 import { join as join10, dirname as dirname3 } from "path";
 import { fileURLToPath as fileURLToPath2 } from "url";
@@ -81846,42 +82037,6 @@ function injectModelsConfig(logger) {
     logger.info("Set default model to blockrun/auto (first install)");
     needsWrite = true;
   }
-  const TOP_MODELS = [
-    "auto",
-    "free",
-    "eco",
-    "premium",
-    "anthropic/claude-sonnet-4.6",
-    "anthropic/claude-opus-4.7",
-    "anthropic/claude-opus-4.6",
-    "anthropic/claude-opus-4.5",
-    "anthropic/claude-haiku-4.5",
-    "openai/gpt-5.5",
-    "openai/gpt-5.4",
-    "openai/gpt-5.3",
-    "openai/gpt-5.3-codex",
-    "openai/gpt-4o",
-    "openai/o3",
-    "google/gemini-3.1-pro",
-    "google/gemini-3-flash-preview",
-    "deepseek/deepseek-chat",
-    "moonshot/kimi-k2.6",
-    "moonshot/kimi-k2.5",
-    "xai/grok-3",
-    "minimax/minimax-m2.7",
-    // Free models (free/ prefix so users see "free" in picker)
-    "free/gpt-oss-120b",
-    "free/gpt-oss-20b",
-    "free/deepseek-v3.2",
-    "free/qwen3-coder-480b",
-    "free/llama-4-maverick",
-    "free/glm-4.7",
-    "free/qwen3-next-80b-a3b-thinking",
-    "free/mistral-small-4-119b",
-    "zai/glm-5",
-    "zai/glm-5.1",
-    "zai/glm-5-turbo"
-  ];
   if (!defaults.models || typeof defaults.models !== "object" || Array.isArray(defaults.models)) {
     defaults.models = {};
     needsWrite = true;
