@@ -409,9 +409,13 @@ No Surf account, no API key — settles directly to Surf's Base treasury in USDC
 | xai/grok-4-1-fast-reasoning                   |     $0.20 |      $0.50 |    $0.0004 | 131K    | reasoning, tools                             |
 | xai/grok-4-0709                               |     $0.20 |      $1.50 |    $0.0009 | 131K    | reasoning, tools                             |
 | openai/gpt-5-mini                             |     $0.25 |      $2.00 |    $0.0011 | 200K    | tools                                        |
-| deepseek/deepseek-chat                        |     $0.28 |      $0.42 |    $0.0004 | 128K    | tools                                        |
-| deepseek/deepseek-reasoner                    |     $0.28 |      $0.42 |    $0.0004 | 128K    | reasoning, tools                             |
+| deepseek/deepseek-chat                        |     $0.20 |      $0.40 |    $0.0003 | 1M      | tools (V4 Flash chat)                        |
+| deepseek/deepseek-reasoner                    |     $0.20 |      $0.40 |    $0.0003 | 1M      | reasoning, tools (V4 Flash thinking)         |
+| deepseek/deepseek-v4-pro                      |    $0.435 |      $0.87 |    $0.0007 | 1M      | reasoning, agentic, tools (V4 flagship)      |
+| zai/glm-5                                     | flat $0.001/request | | $0.0010 | 200K  | tools                                        |
+| zai/glm-5-turbo                               | flat $0.001/request | | $0.0010 | 200K  | tools                                        |
 | xai/grok-3-mini                               |     $0.30 |      $0.50 |    $0.0004 | 131K    | tools                                        |
+| minimax/minimax-m3                            |     $0.30 |      $1.20 |    $0.0008 | 1M      | reasoning, agentic, tools                    |
 | minimax/minimax-m2.7                          |     $0.30 |      $1.20 |    $0.0008 | 205K    | reasoning, agentic, tools                    |
 | minimax/minimax-m2.5                          |     $0.30 |      $1.20 |    $0.0008 | 205K    | reasoning, agentic, tools                    |
 | google/gemini-2.5-flash                       |     $0.30 |      $2.50 |    $0.0014 | 1M      | vision, tools                                |
@@ -425,12 +429,13 @@ No Surf account, no API key — settles directly to Surf's Base treasury in USDC
 | Model                       | Input $/M | Output $/M | ~$/request | Context | Features                          |
 | --------------------------- | --------: | ---------: | ---------: | ------- | --------------------------------- |
 | anthropic/claude-haiku-4.5  |     $1.00 |      $5.00 |    $0.0030 | 200K    | vision, agentic, tools            |
-| zai/glm-5                   |     $1.00 |      $3.20 |    $0.0021 | 200K    | tools                             |
 | openai/o1-mini              |     $1.10 |      $4.40 |    $0.0028 | 128K    | reasoning, tools                  |
 | openai/o3-mini              |     $1.10 |      $4.40 |    $0.0028 | 128K    | reasoning, tools                  |
 | openai/o4-mini              |     $1.10 |      $4.40 |    $0.0028 | 128K    | reasoning, tools                  |
-| zai/glm-5-turbo             |     $1.20 |      $4.00 |    $0.0026 | 200K    | tools                             |
 | google/gemini-2.5-pro       |     $1.25 |     $10.00 |    $0.0056 | 1M      | reasoning, vision, tools          |
+| zai/glm-5.1                 |     $1.40 |      $4.40 |    $0.0029 | 200K    | reasoning, tools (promo ended 2026-06-05) |
+| xai/grok-4.3                |     $1.50 |      $4.00 |    $0.0028 | 1M      | reasoning, vision, agentic, tools |
+| xai/grok-build-0.1          |     $1.50 |      $3.00 |    $0.0023 | 256K    | agentic coding, tools             |
 | openai/gpt-5.2              |     $1.75 |     $14.00 |    $0.0079 | 400K    | reasoning, vision, agentic, tools |
 | openai/gpt-5.3              |     $1.75 |     $14.00 |    $0.0079 | 128K    | reasoning, vision, agentic, tools |
 | openai/gpt-5.3-codex        |     $1.75 |     $14.00 |    $0.0079 | 400K    | agentic, tools                    |

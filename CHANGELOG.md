@@ -4,6 +4,17 @@ All notable changes to ClawRouter.
 
 ---
 
+## v0.12.201 — June 5, 2026
+
+- **Catalog sync with BlockRun backend (2026-06-04/05 model drops + repricing).**
+  - **New xAI models** (`src/models.ts`, `src/top-models.json`): `xai/grok-4.3` ($1.50/$4.00, 1M ctx, reasoning + vision + agentic) and `xai/grok-build-0.1` ($1.50/$3.00, 256K, agentic coding) — both resold via BlockRun's OpenRouter credit pool and public in the backend catalog, so both are picker-visible. Aliases: bare `grok` promoted `xai/grok-3` → `xai/grok-4.3` (grok-3 and the 4-fast/4-1-fast families are now hidden on BlockRun; explicit IDs still resolve). `grok-code` repointed `deepseek/deepseek-chat` → `xai/grok-build-0.1` (xAI again has a real coding SKU); new pins `grok-4.3`, `grok-build`. The delisted `grok-code-fast-1` redirects stay on cheap chat.
+  - **`deepseek/deepseek-v4-pro` added to the catalog** ($0.435/$0.87 — the 75% launch promo became DeepSeek's permanent list price after 2026-05-31; 1M ctx, reasoning + agentic). Fixes a latent picker bug: `top-models.json` already listed it, but with no `BLOCKRUN_MODELS` entry the `VISIBLE_OPENCLAW_MODELS` filter silently dropped it. `deepseek-chat`/`deepseek-reasoner` entries refreshed from stale V3.2 ($0.28/$0.42, 128K) to V4 Flash ($0.20/$0.40, 1M).
+  - **GLM flat pricing modeled correctly** (`src/models.ts`): new permanent `flatPrice` field on `BlockRunModel` (backend `billingMode: "flat"`; takes precedence in `getActivePromoPrice`). `zai/glm-5` and `zai/glm-5-turbo` switch from an expired promo (ended 2026-04-15 in our metadata) to permanent flat $0.001/request — they had been mis-estimated per-token for 7 weeks. `zai/glm-5.1`'s promo end corrected to 2026-06-05 (when BlockRun actually ended it); it now bills per-token $1.40/$4.40.
+  - **Router untouched:** tier primaries/fallbacks in `src/router/config.ts` are benchmark-driven; grok-4.3 / grok-build-0.1 / v4-pro enter routing only after they get benchmark rows.
+  - **Docs:** README pricing tables refreshed (deepseek V4 rows, glm flat rows, grok-4.3 / grok-build-0.1 / minimax-m3 / glm-5.1 added); `skills/clawrouter/SKILL.md` model list updated.
+
+---
+
 ## v0.12.198 — May 29, 2026
 
 - **Claude Opus 4.8 is now the Anthropic flagship.** BlockRun's source-of-truth model registry (`blockrun/src/lib/models.ts`) shipped `anthropic/claude-opus-4.8` as its current featured flagship — $5/$25 per 1M (identical to 4.7), 1M context, 128K output, adaptive thinking, `fallbackModel: claude-opus-4.7`. This release aligns ClawRouter:
