@@ -73443,20 +73443,30 @@ function createPayFetchWithPreAuth(baseFetch, client, ttlMs = DEFAULT_TTL_MS, op
     const request = new Request(input, init);
     const urlPath = new URL(request.url).pathname;
     let requestModel = "";
+    let bodyLength = 0;
+    let maxTokens = 0;
     if (init?.body) {
       try {
         const bodyStr = init.body instanceof Uint8Array ? new TextDecoder().decode(init.body) : typeof init.body === "string" ? init.body : "";
         if (bodyStr) {
+          bodyLength = bodyStr.length;
           const parsed = JSON.parse(bodyStr);
           requestModel = parsed.model ?? "";
+          maxTokens = Number(parsed.max_tokens) || 0;
         }
       } catch {
       }
     }
     const cacheKey2 = `${urlPath}:${requestModel}`;
+    const estimateMicros = () => {
+      if (!options?.estimateAmount || !requestModel) return void 0;
+      const est = options.estimateAmount(requestModel, bodyLength, maxTokens);
+      return est === void 0 ? void 0 : Number(est);
+    };
+    const needMicros = estimateMicros();
     const cached = !options?.skipPreAuth ? cache2.get(cacheKey2) : void 0;
-    let rejected402;
-    if (cached && Date.now() - cached.cachedAt < ttlMs) {
+    const preAuthCovers = cached !== void 0 && Date.now() - cached.cachedAt < ttlMs && cached.coverMicros !== void 0 && needMicros !== void 0 && needMicros <= cached.coverMicros;
+    if (preAuthCovers) {
       try {
         const payload2 = await client.createPaymentPayload(cached.paymentRequired);
         const headers = httpClient.encodePaymentSignatureHeader(payload2);
@@ -73469,13 +73479,12 @@ function createPayFetchWithPreAuth(baseFetch, client, ttlMs = DEFAULT_TTL_MS, op
           return response2;
         }
         cache2.delete(cacheKey2);
-        rejected402 = response2;
       } catch {
         cache2.delete(cacheKey2);
       }
     }
     const clonedRequest = request.clone();
-    const response = rejected402 ?? await baseFetch(request);
+    const response = await baseFetch(request);
     if (response.status !== 402) {
       return response;
     }
@@ -73494,7 +73503,7 @@ function createPayFetchWithPreAuth(baseFetch, client, ttlMs = DEFAULT_TTL_MS, op
       } catch {
       }
       paymentRequired = httpClient.getPaymentRequiredResponse(getHeader, body);
-      cache2.set(cacheKey2, { paymentRequired, cachedAt: Date.now() });
+      cache2.set(cacheKey2, { paymentRequired, cachedAt: Date.now(), coverMicros: needMicros });
     } catch (error) {
       throw new Error(
         `Failed to parse payment requirements: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -79877,7 +79886,11 @@ async function startProxy(options) {
     console.log(`[ClawRouter] Payment signed on ${chain3} (${network}) \u2014 $${amountUsd.toFixed(6)}`);
   });
   const payFetch = createPayFetchWithPreAuth(fetch, x402, void 0, {
-    skipPreAuth: paymentChain === "solana"
+    skipPreAuth: paymentChain === "solana",
+    // Per-request cost estimate so pre-auth is only reused when the cached
+    // payment still covers the (possibly larger) request — BlockRun prices per
+    // token, so one model can cost different amounts across requests.
+    estimateAmount
   });
   let balanceMonitor;
   if (options._balanceMonitorOverride) {

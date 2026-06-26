@@ -4,6 +4,19 @@ All notable changes to ClawRouter.
 
 ---
 
+## v0.12.213 — June 26, 2026
+
+Fix an HTTP 500 (`Failed to parse payment requirements`) that broke paid Base-chain calls whenever a small request seeded the pre-auth cache before a larger one ([#188](https://github.com/BlockRunAI/ClawRouter/pull/188), thanks [@KillerQueen-Z](https://github.com/KillerQueen-Z)).
+
+### Pre-auth no longer reuses a stale amount under per-request pricing
+
+- **Root cause:** the pre-auth cache (`payment-preauth.ts`) is keyed `path:model` and stores a single signed amount, but BlockRun prices each call on `input tokens + max_tokens` — so the **same model costs different amounts** across requests. When a later request needed more than the cached amount, the signed payment underpaid; the gateway rejected it with a 402 that is **not** a fresh x402 challenge, and the old code reused that rejection as the challenge → `getPaymentRequiredResponse` threw → **HTTP 500**.
+- **Impact:** every paid Base model failed once a cheaper request seeded the cache before a larger one (any growing/agentic usage — Codex, long contexts). Reproduced on a clean `npx @blockrun/clawrouter@latest`: 12/12 paid models failed `tiny→large`; a 10-turn coding conversation failed ~50% of turns. **Not** affected: free models (no payment) and **Solana** (`skipPreAuth`).
+- **Fix (three guards):** (1) **never knowingly underpay** — reuse a cached pre-auth only when the up-front `estimateAmount` (already used for balance checks) proves the cached amount still covers this request; (2) **safety net** — if a pre-auth is rejected anyway, discard it and re-request **without** payment to get a fresh, canonical challenge, never treating the rejection as the challenge; (3) **fail safe** — when no estimate is available, skip pre-auth rather than risk an underpay. The fast path (cached amount covers the request) still pre-signs and skips the 402 round-trip; only would-be underpays fall back to the normal flow.
+- **Tests:** new `src/payment-preauth.test.ts` (reuse-when-covered / skip-on-growth / reject-then-refetch / no-estimator); full suite **623 passed**, lint + typecheck clean.
+
+---
+
 ## v0.12.212 — June 22, 2026
 
 Stop advertising delisted/redirect aliases in `/v1/models` ([#187](https://github.com/BlockRunAI/ClawRouter/pull/187), thanks [@KillerQueen-Z](https://github.com/KillerQueen-Z)).
