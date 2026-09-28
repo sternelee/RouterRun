@@ -1,6 +1,6 @@
 # ClawRouter
 
-Smart LLM router for autonomous agents. <!-- br:models.chatVisible -->78<!-- /br:models.chatVisible --> models. Wallet-based auth. USDC micropayments via x402.
+Smart LLM router for autonomous agents. <!-- br:models.chatVisible -->79<!-- /br:models.chatVisible --> models. Wallet-based auth. USDC micropayments via x402.
 
 ## Commands
 
